@@ -1,0 +1,124 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #F1F5F9;
+  color: #0F172A;
+}
+
+.app { display: flex; min-height: 100vh; }
+
+/* ---------- Sidebar (desktop : fixe dans le flux ; mobile : tiroir) ---------- */
+.sidebar-conteneur { flex-shrink: 0; }
+.sidebar { width: 230px; height: 100%; background: #0F172A; padding: 28px 0; overflow-y: auto; }
+.sidebar-fond { display: none; }
+
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 24px 28px 24px; border-bottom: 1px solid #1E293B; margin-bottom: 20px; }
+.brand-icon { width: 34px; height: 34px; background: #0F766E; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: white; font-size: 17px; font-weight: 700; flex-shrink: 0; }
+.brand-text { color: white; font-size: 14.5px; font-weight: 700; line-height: 1.25; }
+.brand-text span { display: block; color: #94A3B8; font-size: 11px; font-weight: 500; }
+.nav-item { display: flex; align-items: center; gap: 12px; padding: 14px 24px; color: #94A3B8; font-size: 14px; font-weight: 500; border-left: 3px solid transparent; text-decoration: none; }
+.nav-item.active { color: white; background: #1E293B; border-left: 3px solid #0F766E; }
+.nav-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .6; flex-shrink: 0; }
+.sidebar-footer { margin-top: 40px; padding: 14px 24px; border-top: 1px solid #1E293B; color: #64748B; font-size: 11px; line-height: 1.5; }
+
+.bouton-menu-mobile { display: none; }
+
+/* ---------- Main ---------- */
+.main { flex: 1; min-width: 0; padding: 28px 34px; max-width: 1280px; }
+.topbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 26px; }
+.topbar h1 { font-size: 21px; color: #0F172A; font-weight: 700; }
+.topbar .subtitle { font-size: 13px; color: #64748B; margin-top: 4px; }
+.user-chip { display: flex; align-items: center; gap: 10px; background: white; border: 1px solid #E2E8F0; border-radius: 999px; padding: 7px 14px 7px 7px; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: #CCFBF1; color: #0F766E; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.user-chip .name { font-size: 12.5px; font-weight: 600; color: #0F172A; }
+.user-chip .role { font-size: 10.5px; color: #64748B; }
+
+/* ---------- Status cards ---------- */
+.cartes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+.carte { background: white; border: 1px solid #E2E8F0; border-radius: 14px; padding: 18px 20px; position: relative; overflow: hidden; min-width: 0; }
+.carte .bar { position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+.carte .label { font-size: 12.5px; color: #64748B; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.carte .value { font-size: 30px; font-weight: 700; color: #0F172A; margin-top: 8px; word-break: break-word; }
+.carte .unit { font-size: 14px; color: #64748B; font-weight: 500; }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; margin-top: 12px; }
+.badge.ok { background: #DCFCE7; color: #15803D; }
+.badge.alerte { background: #FEF3C7; color: #B45309; }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ---------- Content grid ---------- */
+.content-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; }
+.panel { background: white; border: 1px solid #E2E8F0; border-radius: 14px; padding: 22px; min-width: 0; overflow-x: auto; }
+.panel-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; }
+.panel-header h2 { font-size: 15.5px; color: #0F172A; font-weight: 700; }
+.panel-header .tag { font-size: 11.5px; color: #64748B; background: #F1F5F9; padding: 4px 10px; border-radius: 8px; white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 14px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #334155; font-weight: 600; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+/* ---------- Alerts ---------- */
+.alert-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #E2E8F0; flex-wrap: wrap; }
+.alert-row:last-child { border-bottom: none; }
+.alert-icon { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+.alert-icon.amber { background: #FEF3C7; color: #B45309; }
+.alert-icon.gray { background: #F1F5F9; color: #64748B; }
+.alert-title { font-size: 13px; font-weight: 700; color: #0F172A; }
+.alert-meta { font-size: 11.5px; color: #64748B; margin-top: 2px; }
+.alert-status { margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.alert-status.active { background: #FEF3C7; color: #B45309; }
+.alert-status.resolved { background: #DCFCE7; color: #15803D; }
+
+.footer-note { margin-top: 20px; font-size: 11.5px; color: #64748B; text-align: center; }
+.erreur-connexion { background: #FEE2E2; color: #B91C1C; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 13.5px; }
+.chargement { color: #64748B; font-size: 13.5px; padding: 20px 0; }
+
+/* =======================================================================
+   RESPONSIVE — tablette (≤ 1024px) : cartes sur 2 colonnes, panneaux empilés
+   ======================================================================= */
+@media (max-width: 1024px) {
+  .cartes { grid-template-columns: repeat(2, 1fr); }
+  .content-grid { grid-template-columns: 1fr; }
+}
+
+/* =======================================================================
+   RESPONSIVE — mobile (≤ 768px) : barre latérale en tiroir, tout en 1 colonne
+   ======================================================================= */
+@media (max-width: 768px) {
+  .main { padding: 18px 16px 28px 16px; max-width: 100%; }
+  .cartes { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .carte { padding: 14px 14px; }
+  .carte .value { font-size: 24px; }
+  .panel { padding: 16px; }
+
+  .topbar { margin-bottom: 18px; margin-top: 6px; }
+  .topbar h1 { font-size: 18px; }
+
+  /* Le bouton hamburger n'apparaît qu'en dessous de 768px */
+  .bouton-menu-mobile {
+    display: flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid #E2E8F0;
+    background: white; font-size: 18px; color: #0F172A; margin-bottom: 14px; cursor: pointer;
+  }
+
+  /* La barre latérale devient un tiroir qui glisse depuis la gauche */
+  .sidebar-conteneur {
+    position: fixed; top: 0; left: 0; height: 100vh; width: 260px; z-index: 50;
+    transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  }
+  .sidebar-conteneur.ouvert { transform: translateX(0); }
+  .sidebar { width: 100%; }
+
+  .sidebar-fond {
+    display: block; position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+    z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  .sidebar-fond.visible { opacity: 1; pointer-events: auto; }
+}
+
+/* =======================================================================
+   RESPONSIVE — très petit écran (≤ 420px) : cartes en 1 colonne
+   ======================================================================= */
+@media (max-width: 420px) {
+  .cartes { grid-template-columns: 1fr; }
+  .user-chip .role { display: none; }
+}

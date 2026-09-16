@@ -1,0 +1,6 @@
+requests>=2.31.0
+
+# Les paquets ci-dessous ne sont necessaires QUE sur le vrai Raspberry Pi
+# (matériel réel). Sur ton ordinateur, laisse-les de côté : le code
+# bascule automatiquement en mode simulation si absents (voir adc.py).
+# spidev>=3.6

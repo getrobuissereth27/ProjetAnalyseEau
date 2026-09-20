@@ -8,7 +8,6 @@ const LIENS = [
   { to: '/alertes', label: 'Alertes' },
   { to: '/parametres', label: 'Paramètres (admin)', adminSeulement: true },
   { to: '/utilisateurs', label: 'Utilisateurs (admin)', adminSeulement: true },
-  { to: '/notifications', label: 'Alertes email (admin)', adminSeulement: true },
 ];
 
 export default function Sidebar({ onNavigate }) {

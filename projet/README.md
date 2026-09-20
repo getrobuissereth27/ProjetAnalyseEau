@@ -12,8 +12,8 @@ projet/
 └── frontend/           Tableau de bord React (Dockerfile inclus)
 ```
 
-Ce guide explique comment tout faire tourner **d'abord sur un ordinateur** (pour
-tester sans matériel), puis comment déployer le client sur un **Raspberry Pi**.
+Ce guide t'explique comment tout faire tourner **d'abord sur ton ordinateur** (pour
+tester sans matériel), puis comment déployer le client sur le **vrai Raspberry Pi**.
 
 ## Fonctionnalités de l'interface web
 
@@ -31,8 +31,8 @@ tester sans matériel), puis comment déployer le client sur un **Raspberry Pi**
 
 ## Option A — Avec Docker (le plus simple)
 
-Si [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé,
-on n'as **rien d'autre à installer** — pas de Node.js, pas de MongoDB, pas de Python
+Si tu as [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé,
+tu n'as **rien d'autre à installer** — pas de Node.js, pas de MongoDB, pas de Python
 pour le backend/frontend. Docker s'occupe de tout, y compris la base de données.
 
 ```bash
@@ -59,7 +59,7 @@ C'est tout. Ouvre ensuite :
 - L'API : http://localhost:3001/api/sante (doit répondre `{"statut":"ok"}`)
 
 Le client Raspberry Pi (Python), lui, **reste hors de Docker** — il est fait pour
-tourner directement sur le Raspberry Pi ou sur un ordinateur en simulation (voir
+tourner directement sur le Raspberry Pi ou sur ton ordinateur en simulation (voir
 section 2 plus bas). Lance-le normalement :
 
 ```bash
@@ -82,7 +82,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 puis réessaie `venv\Scripts\Activate.ps1`.
 
-Ensuite, pointe vers l'API (adapte selon l'OS) :
+Ensuite, pointe vers l'API (adapte selon ton OS) :
 
 Linux / Mac :
 ```bash
@@ -100,10 +100,17 @@ docker compose down          # arrête tout
 docker compose down -v       # arrête tout ET efface les données MongoDB
 ```
 
+**⚠️ Point de transparence** : cette configuration Docker n'a pas pu être testée dans
+mon environnement de préparation (Docker n'y est pas installé). J'ai vérifié tout ce
+qui pouvait l'être sans Docker lui-même (syntaxe YAML valide, cohérence des ports et
+variables d'environnement, dépendances présentes dans l'image de production). Si
+quelque chose ne démarre pas comme prévu chez toi, montre-moi le message d'erreur
+exact et on corrige ensemble.
+
 ### En cas de conflit de port
 
 L'API est publiée sur le port **3001** (et non 3000) car ce dernier est souvent déjà
-utilisé par un autre programme sur Windows. Si il y a une erreur du type
+utilisé par un autre programme sur Windows. Si tu vois une erreur du type
 `port is already allocated`, deux solutions :
 1. Identifie et arrête le programme qui occupe le port concerné :
    `netstat -ano | findstr :3001` (Windows) puis `Stop-Process -Id <PID> -Force`
@@ -166,10 +173,10 @@ npm test
 
 ---
 
-## 2. Lancer le client Raspberry Pi (en simulation, sur un ordinateur)
+## 2. Lancer le client Raspberry Pi (en simulation, sur ton ordinateur)
 
 Le code détecte automatiquement l'absence de matériel (pas de bus SPI sur un PC/Mac) et
-bascule en simulation — on peut donc tester tout le pipeline sans capteur ni Raspberry Pi.
+bascule en simulation — tu peux donc tester tout le pipeline sans capteur ni Raspberry Pi.
 
 ```bash
 cd raspberry-client
@@ -209,7 +216,7 @@ cp .env.example .env       # VITE_API_URL=http://localhost:3000 par défaut
 npm run dev
 ```
 
-Ouvre l'URL affichée (en général http://localhost:5173) — on doit voir les cartes de
+Ouvre l'URL affichée (en général http://localhost:5173) — tu dois voir les cartes de
 mesures se remplir au bout de quelques secondes (le temps que le client Raspberry Pi
 envoie ses premières valeurs).
 
@@ -241,7 +248,7 @@ export API_URL=https://api-projet-eau.onrender.com
 python3 main.py
 ```
 
-Le même code qui tournait en simulation sur l'ordinateur lira maintenant les vrais
+Le même code qui tournait en simulation sur ton ordinateur lira maintenant les vrais
 capteurs, car `adc.py` détecte automatiquement la présence de `spidev` sur le Raspberry Pi.
 
 Pour un démarrage automatique au boot, voir le service systemd fourni dans le chapitre
@@ -258,17 +265,17 @@ sort des seuils, et la rouvre dès que tout redevient normal — sans action hum
 en base), pas le Raspberry Pi. À chaque cycle, le client interroge `GET /api/vanne/etat`
 et met à jour la LED en conséquence — le Raspberry Pi ne fait qu'exécuter la décision.
 
-**Câblage sur le Raspberry Pi** : une LED + une résistance ~330 Ω entre le
+**Câblage sur le vrai Raspberry Pi** : une LED + une résistance ~330 Ω entre le
 **GPIO 17** (broche physique 11) et la masse (**GND**, par exemple broche physique 9).
 
 ```
 GPIO 17 ──[résistance 330Ω]──▶│LED│── GND
 ```
 
-- Sur l' ordinateur (sans matériel), `vanne.py` bascule automatiquement en simulation
+- Sur ton ordinateur (sans matériel), `vanne.py` bascule automatiquement en simulation
   et affiche l'état dans le terminal (`🟢 OUVERTE` / `🔴 FERMÉE`) au lieu de piloter un
   vrai GPIO.
-- Sur le Raspberry Pi, installe en plus `RPi.GPIO` :
+- Sur le vrai Raspberry Pi, installe en plus `RPi.GPIO` :
   ```bash
   pip install RPi.GPIO
   ```
@@ -318,42 +325,6 @@ python3 main.py
 
 ---
 
-## 4quater. Gestion des utilisateurs et notifications par email
-
-### Gestion des comptes (page "Utilisateurs", admin uniquement)
-
-Un administrateur peut créer, modifier (nom, email, rôle) et supprimer des comptes
-depuis la page **Utilisateurs**. Deux garde-fous sont en place : impossible de
-supprimer son propre compte, et le mot de passe ne se change jamais depuis cette
-page (voir ci-dessous) — uniquement le rôle et les informations du compte.
-
-### Changer son propre mot de passe
-
-N'importe quel utilisateur connecté (admin ou responsable CAEPA) peut changer son
-mot de passe en cliquant sur son badge en haut à droite de l'écran ("Mon compte").
-L'ancien mot de passe est requis pour confirmer le changement.
-
-### Alertes par email (page "Alertes email", admin uniquement)
-
-Chaque site a sa propre liste de destinataires. Un email est envoyé automatiquement
-à chaque adresse configurée dès qu'une nouvelle alerte se déclenche sur ce site — le
-contenu de l'email reprend exactement les mêmes informations que le panneau de
-détail d'une alerte dans l'interface (paramètre, valeur mesurée, seuil, date, état
-de la vanne).
-
-**Important : l'envoi d'email est désactivé par défaut.** Sans configuration SMTP,
-le système fonctionne normalement (alertes, fermeture de vanne...) mais l'email
-n'est pas réellement envoyé — un message apparaît simplement dans les logs du
-backend à sa place. Pour activer l'envoi réel :
-
-- **Sans Docker** : renseigne `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
-  dans `backend/.env` (voir `backend/.env.example` pour un exemple avec Gmail).
-- **Avec Docker** : crée un fichier `.env` à la **racine du projet** (à côté de
-  `docker-compose.yml`, pas dans `backend/`) avec ces mêmes variables — Docker
-  Compose les injecte automatiquement dans le conteneur backend.
-
----
-
 ## 5. Ordre de démarrage recommandé (test complet en local)
 
 1. **Terminal 1** — `cd backend && npm run dev`
@@ -367,7 +338,7 @@ backend à sa place. Pour activer l'envoi réel :
 
 Les tests d'intégration du backend (`backend/tests/mesures.routes.test.js`) utilisent
 une base MongoDB temporaire en mémoire (`mongodb-memory-server`), qui télécharge un
-binaire MongoDB au premier lancement. Sur un ordinateur avec un accès internet normal,
+binaire MongoDB au premier lancement. Sur ton ordinateur avec un accès internet normal,
 `npm test` fonctionnera sans souci. Les tests unitaires purs (`analyse.service.test.js`,
 sans base de données) ont déjà été vérifiés et passent.
 

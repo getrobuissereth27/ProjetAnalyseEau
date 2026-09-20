@@ -22,8 +22,18 @@ export function AuthProvider({ children }) {
     setUtilisateur(null);
   };
 
+  // Met à jour l'utilisateur affiché (ex: après modification du nom) sans
+  // nécessiter une reconnexion — fusionne les champs fournis dans l'état actuel.
+  const mettreAJourUtilisateur = (partiel) => {
+    setUtilisateur((prev) => {
+      const suivant = { ...prev, ...partiel };
+      localStorage.setItem('utilisateur', JSON.stringify(suivant));
+      return suivant;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ utilisateur, connexion, deconnexion }}>
+    <AuthContext.Provider value={{ utilisateur, connexion, deconnexion, mettreAJourUtilisateur }}>
       {children}
     </AuthContext.Provider>
   );

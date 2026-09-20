@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import client from '../api/client';
 import Layout from '../components/Layout';
+import GestionDestinataires from '../components/GestionDestinataires';
+import PortsArduino from '../components/PortsArduino';
 import { useSite } from '../sites/SiteContext';
 
 const TYPES_CONNUS = [
@@ -12,7 +14,12 @@ const TYPES_CONNUS = [
 ];
 
 const LABELS_TYPE = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'Conductivité' };
-const NB_CANAUX_ADC = 8; // MCP3008 / ADS1115 : 8 canaux (0 à 7)
+const STATUT_INFO = {
+  fonctionne: { libelle: 'Fonctionne', couleur: '#15803D', fond: '#DCFCE7' },
+  defectueux: { libelle: 'Défectueux', couleur: '#B91C1C', fond: '#FEE2E2' },
+  desactive: { libelle: 'Désactivé', couleur: '#64748B', fond: '#F1F5F9' },
+  inconnu: { libelle: 'Inconnu', couleur: '#B45309', fond: '#FEF3C7' },
+};
 
 export default function ParametresSeuils() {
   const { siteActifId } = useSite();
@@ -27,9 +34,19 @@ export default function ParametresSeuils() {
   const [nouveauTypeLibre, setNouveauTypeLibre] = useState('');
   const [nouveauModele, setNouveauModele] = useState('');
   const [nouvelleUnite, setNouvelleUnite] = useState('pH');
-  const [nouveauCanal, setNouveauCanal] = useState('');
+  const [nouvelleBroche, setNouvelleBroche] = useState('');
+  const [nouvelleBrocheLibre, setNouvelleBrocheLibre] = useState('');
   const [ajoutEnCours, setAjoutEnCours] = useState(false);
   const [erreurAjout, setErreurAjout] = useState(null);
+
+  // ---- Édition d'un capteur existant (remplacement de modèle / broche) ----
+  const [editionId, setEditionId] = useState(null);
+  const [editionModele, setEditionModele] = useState('');
+  const [editionBroche, setEditionBroche] = useState('');
+  const [editionEnCours, setEditionEnCours] = useState(false);
+  const [erreurEdition, setErreurEdition] = useState(null);
+
+  const BROCHES_ANALOGIQUES = Array.from({ length: 16 }, (_, i) => `A${i}`);
 
   const charger = () => {
     if (!siteActifId) return;
@@ -40,17 +57,11 @@ export default function ParametresSeuils() {
 
   useEffect(charger, [siteActifId]);
 
-  // Canal ADC (0-7) → type de capteur qui l'occupe déjà sur ce site (ou undefined si libre)
-  const canalOccupePar = useMemo(() => {
-    const carte = {};
-    seuils.forEach((s) => {
-      const canal = s.capteur_id?.canal_adc;
-      if (canal !== null && canal !== undefined) {
-        carte[canal] = s.capteur_id.type;
-      }
-    });
-    return carte;
-  }, [seuils]);
+  const brocheOccupeePar = {};
+  seuils.forEach((s) => {
+    const broche = s.capteur_id?.broche;
+    if (broche) brocheOccupeePar[broche] = s.capteur_id.type;
+  });
 
   const changerChamp = (capteurId, champ, valeur) => {
     setModifications((prev) => ({
@@ -88,6 +99,48 @@ export default function ParametresSeuils() {
     if (info && valeur !== 'autre') setNouvelleUnite(info.unite);
   };
 
+  const commencerEditionCapteur = (capteur) => {
+    setEditionId(capteur._id);
+    setEditionModele(capteur.modele);
+    setEditionBroche(capteur.broche || '');
+    setErreurEdition(null);
+  };
+
+  const annulerEditionCapteur = () => {
+    setEditionId(null);
+    setErreurEdition(null);
+  };
+
+  const enregistrerRemplacement = async (capteurId) => {
+    setErreurEdition(null);
+    if (!editionModele.trim()) {
+      setErreurEdition('Le modèle ne peut pas être vide.');
+      return;
+    }
+    setEditionEnCours(true);
+    try {
+      await client.patch(`/api/capteurs/${capteurId}`, {
+        modele: editionModele.trim(),
+        broche: editionBroche,
+      });
+      setEditionId(null);
+      charger();
+    } catch (err) {
+      setErreurEdition(err.response?.data?.erreur || 'Impossible de modifier ce capteur.');
+    } finally {
+      setEditionEnCours(false);
+    }
+  };
+
+  const changerActivation = async (capteurId, actif) => {
+    try {
+      await client.patch(`/api/capteurs/${capteurId}/actif`, { actif });
+      charger();
+    } catch (err) {
+      setMessages((m) => ({ ...m, [capteurId]: '✘ Erreur' }));
+    }
+  };
+
   const ajouterCapteur = async (e) => {
     e.preventDefault();
     setErreurAjout(null);
@@ -105,13 +158,14 @@ export default function ParametresSeuils() {
         type,
         modele: nouveauModele.trim(),
         unite: nouvelleUnite.trim(),
-        canal_adc: nouveauCanal === '' ? null : Number(nouveauCanal),
+        broche: nouvelleBroche === 'autre' ? nouvelleBrocheLibre.trim() : nouvelleBroche,
       });
       setNouveauType('pH');
       setNouveauTypeLibre('');
       setNouveauModele('');
       setNouvelleUnite('pH');
-      setNouveauCanal('');
+      setNouvelleBroche('');
+      setNouvelleBrocheLibre('');
       setFormOuvert(false);
       charger();
     } catch (err) {
@@ -124,10 +178,14 @@ export default function ParametresSeuils() {
   return (
     <Layout titre="Configuration des seuils d'alerte" sousTitre='Cas d’utilisation : « Configurer les seuils d’alerte »'>
       <div style={styles.banniereRole}>
-        🔒 Page réservée au rôle Administrateur — invisible pour le Responsable CAEPA
+        Page réservée au rôle Administrateur — invisible pour le Responsable CAEPA
       </div>
 
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}
+
+      <GestionDestinataires />
+
+      <PortsArduino seuils={seuils} />
 
       <div className="panel" style={{ marginBottom: 18 }}>
         <div className="panel-header">
@@ -169,39 +227,37 @@ export default function ParametresSeuils() {
                 <label style={styles.label}>Unité de mesure</label>
                 <input style={styles.champForm} value={nouvelleUnite} onChange={(e) => setNouvelleUnite(e.target.value)} placeholder="ex : NTU" required />
               </div>
-              <div style={{ width: 260 }}>
-                <label style={styles.label}>Canal ADC (capteur analogique)</label>
-                <select style={styles.champForm} value={nouveauCanal} onChange={(e) => setNouveauCanal(e.target.value)}>
-                  <option value="">— Aucun (capteur numérique) —</option>
-                  {Array.from({ length: NB_CANAUX_ADC }, (_, canal) => canal).map((canal) => {
-                    const occupePar = canalOccupePar[canal];
+              <div style={{ width: 240 }}>
+                <label style={styles.label}>Broche Arduino</label>
+                <select style={styles.champForm} value={nouvelleBroche} onChange={(e) => setNouvelleBroche(e.target.value)}>
+                  <option value="">— Non précisée —</option>
+                  {BROCHES_ANALOGIQUES.map((broche) => {
+                    const occupePar = brocheOccupeePar[broche];
                     return (
-                      <option key={canal} value={canal} disabled={!!occupePar}>
-                        Canal {canal} {occupePar ? `— déjà utilisé (${LABELS_TYPE[occupePar] || occupePar})` : '— libre'}
+                      <option key={broche} value={broche} disabled={!!occupePar}>
+                        {broche} {occupePar ? `— déjà utilisée (${LABELS_TYPE[occupePar] || occupePar})` : '— libre'}
                       </option>
                     );
                   })}
+                  <option value="autre">Autre (broche numérique, ex: D2)…</option>
                 </select>
               </div>
             </div>
 
-            <div style={styles.legendeCanaux}>
-              {Array.from({ length: NB_CANAUX_ADC }, (_, canal) => canal).map((canal) => {
-                const occupePar = canalOccupePar[canal];
-                return (
-                  <span key={canal} style={{ ...styles.puceCanal, ...(occupePar ? styles.puceCanalOccupe : styles.puceCanalLibre) }}>
-                    {canal} {occupePar ? `· ${LABELS_TYPE[occupePar] || occupePar}` : '· libre'}
-                  </span>
-                );
-              })}
-            </div>
+            {nouvelleBroche === 'autre' && (
+              <div style={{ ...styles.ligneForm, marginTop: -4 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={styles.label}>Nom de la broche numérique</label>
+                  <input style={styles.champForm} value={nouvelleBrocheLibre} onChange={(e) => setNouvelleBrocheLibre(e.target.value)} placeholder="ex : D2" />
+                </div>
+              </div>
+            )}
 
             <button type="submit" style={styles.boutonValider} disabled={ajoutEnCours}>
               {ajoutEnCours ? 'Ajout en cours…' : 'Créer le capteur'}
             </button>
             <p style={styles.aideForm}>
-              Le capteur est rattaché au site actuellement sélectionné. Choisis "Aucun" pour un capteur
-              numérique (comme le DS18B20) qui se branche directement sur un GPIO, sans passer par l'ADC.
+              Le capteur est rattaché au site actuellement sélectionné.
             </p>
           </form>
         )}
@@ -212,7 +268,8 @@ export default function ParametresSeuils() {
           <thead>
             <tr style={{ textAlign: 'left', fontSize: 11.5, color: '#64748B', textTransform: 'uppercase' }}>
               <th style={{ padding: '10px 0' }}>Capteur</th>
-              <th style={{ padding: '10px 0' }}>Canal ADC</th>
+              <th style={{ padding: '10px 0' }}>Broche</th>
+              <th style={{ padding: '10px 0' }}>État</th>
               <th style={{ padding: '10px 0' }}>Seuil minimum</th>
               <th style={{ padding: '10px 0' }}>Seuil maximum</th>
               <th style={{ padding: '10px 0' }}></th>
@@ -224,11 +281,57 @@ export default function ParametresSeuils() {
                 <td style={{ padding: '14px 0', fontWeight: 700, fontSize: 13.5, whiteSpace: 'nowrap' }}>
                   {s.capteur_id?.type}
                   {s.valeur_min === null && <span style={styles.puceNouveau}>nouveau — seuil à définir</span>}
+                  {editionId === s.capteur_id._id ? (
+                    <input
+                      style={{ ...styles.champEdition, display: 'block', marginTop: 6, fontWeight: 400 }}
+                      value={editionModele}
+                      onChange={(e) => setEditionModele(e.target.value)}
+                      placeholder="Modèle"
+                    />
+                  ) : (
+                    <p style={{ fontWeight: 400, fontSize: 11.5, color: '#94A3B8', margin: '2px 0 0' }}>{s.capteur_id?.modele}</p>
+                  )}
+                  {erreurEdition && editionId === s.capteur_id._id && (
+                    <p style={{ fontSize: 10.5, color: '#B91C1C', fontWeight: 400, margin: '4px 0 0' }}>⚠ {erreurEdition}</p>
+                  )}
                 </td>
-                <td style={{ padding: '14px 0', fontSize: 12.5, color: '#64748B' }}>
-                  {s.capteur_id?.canal_adc !== null && s.capteur_id?.canal_adc !== undefined
-                    ? `Canal ${s.capteur_id.canal_adc}`
-                    : 'Numérique (GPIO)'}
+                <td style={{ padding: '14px 0', fontSize: 13, color: '#475569' }}>
+                  {editionId === s.capteur_id._id ? (
+                    <select style={styles.champEdition} value={editionBroche} onChange={(e) => setEditionBroche(e.target.value)}>
+                      <option value="">— Non précisée —</option>
+                      {BROCHES_ANALOGIQUES.map((broche) => {
+                        const occupePar = brocheOccupeePar[broche];
+                        const occupeeParAutre = occupePar && broche !== s.capteur_id.broche;
+                        return (
+                          <option key={broche} value={broche} disabled={!!occupeeParAutre}>
+                            {broche} {occupeeParAutre ? `— déjà utilisée (${LABELS_TYPE[occupePar] || occupePar})` : ''}
+                          </option>
+                        );
+                      })}
+                      {s.capteur_id.broche && !BROCHES_ANALOGIQUES.includes(s.capteur_id.broche) && (
+                        <option value={s.capteur_id.broche}>{s.capteur_id.broche} (numérique)</option>
+                      )}
+                    </select>
+                  ) : (
+                    s.capteur_id?.broche || <span style={{ color: '#CBD5E1' }}>—</span>
+                  )}
+                </td>
+                <td style={{ padding: '14px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{
+                      ...styles.puceStatut,
+                      color: STATUT_INFO[s.capteur_id?.statut]?.couleur,
+                      background: STATUT_INFO[s.capteur_id?.statut]?.fond,
+                    }}>
+                      {STATUT_INFO[s.capteur_id?.statut]?.libelle || 'Inconnu'}
+                    </span>
+                    <button
+                      style={styles.boutonBascule}
+                      onClick={() => changerActivation(s.capteur_id._id, s.capteur_id.statut === 'desactive')}
+                    >
+                      {s.capteur_id?.statut === 'desactive' ? 'Activer' : 'Désactiver'}
+                    </button>
+                  </div>
                 </td>
                 <td style={{ padding: '14px 0' }}>
                   <input
@@ -249,13 +352,25 @@ export default function ParametresSeuils() {
                   />
                 </td>
                 <td style={{ padding: '14px 0', display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap' }}>
-                  <button style={styles.bouton} onClick={() => enregistrer(s)}>Enregistrer</button>
-                  {messages[s.capteur_id._id] && <span style={{ fontSize: 12 }}>{messages[s.capteur_id._id]}</span>}
+                  {editionId === s.capteur_id._id ? (
+                    <>
+                      <button style={styles.bouton} onClick={() => enregistrerRemplacement(s.capteur_id._id)} disabled={editionEnCours}>
+                        {editionEnCours ? '…' : '✔ Confirmer'}
+                      </button>
+                      <button style={styles.boutonBascule} onClick={annulerEditionCapteur}>Annuler</button>
+                    </>
+                  ) : (
+                    <>
+                      <button style={styles.bouton} onClick={() => enregistrer(s)}>Enregistrer</button>
+                      <button style={styles.boutonBascule} onClick={() => commencerEditionCapteur(s.capteur_id)}>Remplacer</button>
+                      {messages[s.capteur_id._id] && <span style={{ fontSize: 12 }}>{messages[s.capteur_id._id]}</span>}
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
             {seuils.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: '14px 0', color: '#64748B' }}>Aucun capteur pour ce site pour l'instant.</td></tr>
+              <tr><td colSpan={6} style={{ padding: '14px 0', color: '#64748B' }}>Aucun capteur pour ce site pour l'instant.</td></tr>
             )}
           </tbody>
         </table>
@@ -271,13 +386,12 @@ const styles = {
   ligneForm: { display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 },
   label: { display: 'block', fontSize: 11.5, fontWeight: 600, color: '#334155', marginBottom: 5 },
   champForm: { width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13 },
-  legendeCanaux: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
-  puceCanal: { fontSize: 10.5, fontWeight: 600, padding: '4px 9px', borderRadius: 999 },
-  puceCanalLibre: { background: '#DCFCE7', color: '#15803D' },
-  puceCanalOccupe: { background: '#FEE2E2', color: '#B91C1C' },
   boutonValider: { padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', background: '#0F766E', color: 'white', cursor: 'pointer' },
   aideForm: { fontSize: 11.5, color: '#94A3B8', marginTop: 10, lineHeight: 1.5 },
   champ: { width: 90, padding: '7px 10px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontWeight: 600 },
   bouton: { padding: '7px 16px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, border: 'none', background: '#0F766E', color: 'white', cursor: 'pointer' },
   puceNouveau: { display: 'inline-block', marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '2px 8px', borderRadius: 999 },
+  champEdition: { fontSize: 12.5, padding: '5px 8px', border: '1px solid #0F766E', borderRadius: 6, width: '100%', maxWidth: 180, boxSizing: 'border-box' },
+  puceStatut: { fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, whiteSpace: 'nowrap' },
+  boutonBascule: { fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155', cursor: 'pointer', whiteSpace: 'nowrap' },
 };

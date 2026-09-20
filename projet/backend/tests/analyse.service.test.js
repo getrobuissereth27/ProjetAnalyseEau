@@ -3,40 +3,39 @@ const Seuil = require('../models/seuil.model');
 const Alerte = require('../models/alerte.model');
 const Mesure = require('../models/mesure.model');
 const Capteur = require('../models/capteur.model');
-const Site = require('../models/site.model');
 const Destinataire = require('../models/destinataire.model');
+const Site = require('../models/site.model');
 const { envoyerAlerteEmail } = require('../services/email.service');
 
 jest.mock('../models/seuil.model');
 jest.mock('../models/alerte.model');
 jest.mock('../models/mesure.model');
 jest.mock('../models/capteur.model');
-jest.mock('../models/site.model');
 jest.mock('../models/destinataire.model');
+jest.mock('../models/site.model');
 jest.mock('../services/email.service');
 
-// Attend la fin des envois de notification "fire-and-forget" déclenchés en
-// arrière-plan par verifierSeuil, pour pouvoir vérifier leurs effets ensuite.
-const laisserTournerLesPromesses = () => new Promise((r) => setImmediate(r));
+// Petit utilitaire pour éviter de répéter cette chaîne .select() dans chaque test.
+function mockDestinataires(liste) {
+  Destinataire.find.mockReturnValue({ select: jest.fn().mockResolvedValue(liste) });
+}
 
 beforeEach(() => {
-  Capteur.findById.mockResolvedValue({ _id: '1', type: 'pH', unite: 'pH', site_id: 'site1' });
-  Site.findById.mockResolvedValue({ _id: 'site1', nom: 'Site de test' });
-  Destinataire.find.mockResolvedValue([{ email: 'admin@demo.local' }]);
-  envoyerAlerteEmail.mockResolvedValue({ envoye: true });
+  // Par défaut, aucun destinataire configuré : la notification par email est
+  // silencieusement ignorée, sauf dans les tests qui la testent explicitement.
+  mockDestinataires([]);
 });
 
 afterEach(() => jest.clearAllMocks());
 
 test("crée une alerte si la mesure dépasse le seuil max et qu'aucune alerte n'est déjà active", async () => {
   Seuil.findOne.mockResolvedValue({ capteur_id: '1', valeur_min: 6.5, valeur_max: 8.5 });
+  Capteur.findById.mockResolvedValue({ actif: true, site_id: 's1', type: 'pH', unite: 'pH' });
   Mesure.find.mockReturnValue({ select: jest.fn().mockResolvedValue([]) });
   Alerte.find.mockResolvedValue([]); // aucune alerte active existante
-  Alerte.create.mockResolvedValue({ _id: 'a1', type_alerte: 'Valeur hors seuil', horodatage: new Date() });
 
   const mesure = { _id: 'm1', capteur_id: '1', valeur: 9.2 };
   await verifierSeuil(mesure);
-  await laisserTournerLesPromesses();
 
   expect(Alerte.create).toHaveBeenCalledWith(
     expect.objectContaining({ mesure_id: 'm1', statut: 'active' })
@@ -45,6 +44,7 @@ test("crée une alerte si la mesure dépasse le seuil max et qu'aucune alerte n'
 
 test("ne crée pas de doublon si une alerte est déjà active pour ce capteur", async () => {
   Seuil.findOne.mockResolvedValue({ capteur_id: '1', valeur_min: 6.5, valeur_max: 8.5 });
+  Capteur.findById.mockResolvedValue({ actif: true, site_id: 's1', type: 'pH', unite: 'pH' });
   Mesure.find.mockReturnValue({ select: jest.fn().mockResolvedValue([{ _id: 'm0' }]) });
   Alerte.find.mockResolvedValue([{ _id: 'a0', statut: 'active' }]); // déjà une alerte active
 
@@ -56,6 +56,7 @@ test("ne crée pas de doublon si une alerte est déjà active pour ce capteur", 
 
 test("ne crée pas d'alerte si la mesure est dans les seuils", async () => {
   Seuil.findOne.mockResolvedValue({ capteur_id: '1', valeur_min: 6.5, valeur_max: 8.5 });
+  Capteur.findById.mockResolvedValue({ actif: true, site_id: 's1', type: 'pH', unite: 'pH' });
   Mesure.find.mockReturnValue({ select: jest.fn().mockResolvedValue([]) });
   Alerte.find.mockResolvedValue([]);
 
@@ -68,6 +69,7 @@ test("ne crée pas d'alerte si la mesure est dans les seuils", async () => {
 
 test("résout les alertes actives quand la mesure revient dans les seuils", async () => {
   Seuil.findOne.mockResolvedValue({ capteur_id: '1', valeur_min: 6.5, valeur_max: 8.5 });
+  Capteur.findById.mockResolvedValue({ actif: true, site_id: 's1', type: 'pH', unite: 'pH' });
   Mesure.find.mockReturnValue({ select: jest.fn().mockResolvedValue([{ _id: 'm0' }]) });
   Alerte.find.mockResolvedValue([{ _id: 'a0', statut: 'active' }]);
 
@@ -82,6 +84,7 @@ test("résout les alertes actives quand la mesure revient dans les seuils", asyn
 
 test("ne fait rien si aucun seuil n'est défini pour ce capteur", async () => {
   Seuil.findOne.mockResolvedValue(null);
+  Capteur.findById.mockResolvedValue({ actif: true, site_id: 's1' });
 
   const mesure = { _id: 'm5', capteur_id: '99', valeur: 1000 };
   const resultat = await verifierSeuil(mesure);
@@ -91,29 +94,52 @@ test("ne fait rien si aucun seuil n'est défini pour ce capteur", async () => {
   expect(Alerte.updateMany).not.toHaveBeenCalled();
 });
 
-test("notifie par email les destinataires du site concerné lors d'une nouvelle alerte", async () => {
+test("ne fait rien si le capteur a été désactivé, même hors seuil", async () => {
   Seuil.findOne.mockResolvedValue({ capteur_id: '1', valeur_min: 6.5, valeur_max: 8.5 });
+  Capteur.findById.mockResolvedValue({ actif: false, site_id: 's1' });
+
+  const mesure = { _id: 'm6', capteur_id: '1', valeur: 12.0 };
+  const resultat = await verifierSeuil(mesure);
+
+  expect(resultat).toBeNull();
+  expect(Alerte.create).not.toHaveBeenCalled();
+});
+
+test("envoie un email aux destinataires actifs du site quand une nouvelle alerte est créée", async () => {
+  Seuil.findOne.mockResolvedValue({ capteur_id: '1', valeur_min: 6.5, valeur_max: 8.5 });
+  Capteur.findById.mockResolvedValue({ actif: true, site_id: 's1', type: 'pH', unite: 'pH' });
   Mesure.find.mockReturnValue({ select: jest.fn().mockResolvedValue([]) });
   Alerte.find.mockResolvedValue([]);
-  Alerte.create.mockResolvedValue({ _id: 'a1', type_alerte: 'Valeur hors seuil', horodatage: new Date() });
+  Alerte.create.mockResolvedValue({ _id: 'a1' });
+  mockDestinataires([{ email: 'admin@demo.local' }, { email: 'caepa@demo.local' }]);
+  Site.findById.mockReturnValue({ select: jest.fn().mockResolvedValue({ nom: 'Site de test' }) });
 
-  const mesure = { _id: 'm6', capteur_id: '1', valeur: 9.9 };
+  const mesure = { _id: 'm7', capteur_id: '1', valeur: 9.2 };
   await verifierSeuil(mesure);
-  await laisserTournerLesPromesses();
+
+  // La notification est envoyée en best-effort (non attendue par verifierSeuil) :
+  // on laisse le micro-tick courant s'écouler avant de vérifier l'appel.
+  await new Promise((r) => setImmediate(r));
 
   expect(envoyerAlerteEmail).toHaveBeenCalledWith(
-    expect.objectContaining({ destinataires: ['admin@demo.local'] })
+    expect.objectContaining({
+      destinataires: ['admin@demo.local', 'caepa@demo.local'],
+      type: 'pH',
+    })
   );
 });
 
-test("n'envoie pas d'email si la mesure reste dans les seuils", async () => {
+test("n'appelle pas le service d'email si aucun destinataire n'est configuré", async () => {
   Seuil.findOne.mockResolvedValue({ capteur_id: '1', valeur_min: 6.5, valeur_max: 8.5 });
+  Capteur.findById.mockResolvedValue({ actif: true, site_id: 's1', type: 'pH', unite: 'pH' });
   Mesure.find.mockReturnValue({ select: jest.fn().mockResolvedValue([]) });
   Alerte.find.mockResolvedValue([]);
+  Alerte.create.mockResolvedValue({ _id: 'a2' });
+  // mockDestinataires([]) déjà appliqué par le beforeEach
 
-  const mesure = { _id: 'm7', capteur_id: '1', valeur: 7.0 };
+  const mesure = { _id: 'm8', capteur_id: '1', valeur: 9.2 };
   await verifierSeuil(mesure);
-  await laisserTournerLesPromesses();
+  await new Promise((r) => setImmediate(r));
 
   expect(envoyerAlerteEmail).not.toHaveBeenCalled();
 });

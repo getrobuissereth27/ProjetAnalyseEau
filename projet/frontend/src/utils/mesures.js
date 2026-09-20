@@ -5,7 +5,7 @@
 export function grouperParCycle(donneesParCle, toleranceMs = 30000) {
   const evenements = [];
   Object.entries(donneesParCle).forEach(([cle, points]) => {
-    points.forEach((p) => evenements.push({ cle, valeur: p.valeur, t: new Date(p.horodatage).getTime() }));
+    points.forEach((p) => evenements.push({ cle, valeur: p.valeur, id: p._id, t: new Date(p.horodatage).getTime() }));
   });
   evenements.sort((a, b) => a.t - b.t);
 
@@ -17,6 +17,7 @@ export function grouperParCycle(donneesParCle, toleranceMs = 30000) {
       lignes.push(ligne);
     }
     ligne[ev.cle] = ev.valeur;
+    ligne[`${ev.cle}_id`] = ev.id;
     ligne.t = Math.min(ligne.t, ev.t); // horodatage du premier élément du cycle
   });
 

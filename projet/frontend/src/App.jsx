@@ -10,7 +10,6 @@ import Historique from './pages/Historique';
 import Alertes from './pages/Alertes';
 import ParametresSeuils from './pages/ParametresSeuils';
 import Utilisateurs from './pages/Utilisateurs';
-import NotificationsEmail from './pages/NotificationsEmail';
 
 export default function App() {
   return (
@@ -29,10 +28,6 @@ export default function App() {
             <Route
               path="/utilisateurs"
               element={<RouteProtegee roleRequis="administrateur"><Utilisateurs /></RouteProtegee>}
-            />
-            <Route
-              path="/notifications"
-              element={<RouteProtegee roleRequis="administrateur"><NotificationsEmail /></RouteProtegee>}
             />
           </Routes>
         </BrowserRouter>

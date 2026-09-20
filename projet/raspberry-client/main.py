@@ -1,7 +1,7 @@
 import time
 from datetime import datetime, timezone
 
-from capteurs import lire_toutes_les_mesures
+from capteurs import lire_temperature, lire_ph, lire_turbidite, lire_tds
 from client_api import envoyer_mesure, recuperer_capteurs, recuperer_etat_vanne
 from tampon import mettre_en_attente, rejouer_mesures_en_attente
 from vanne import appliquer_etat_vanne, nettoyer
@@ -35,12 +35,12 @@ def completer_capteurs_id():
 
 
 def cycle_de_mesure(capteurs_id):
-    mesures = lire_toutes_les_mesures()
+    temperature = lire_temperature()
     lectures = {
-        capteurs_id.get('temperature'): mesures['temperature'],
-        capteurs_id.get('ph'): mesures['ph'],
-        capteurs_id.get('turbidite'): mesures['turbidite'],
-        capteurs_id.get('tds'): mesures['tds'],
+        capteurs_id.get('temperature'): temperature,
+        capteurs_id.get('ph'): lire_ph(),
+        capteurs_id.get('turbidite'): lire_turbidite(),
+        capteurs_id.get('tds'): lire_tds(temperature or 25.0),
     }
 
     horodatage = datetime.now(timezone.utc).isoformat()

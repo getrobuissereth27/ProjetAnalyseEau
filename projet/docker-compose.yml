@@ -1,16 +1,16 @@
 services:
   mongodb:
     image: mongo:7
-    container_name: eau-mongodb
+    container_name: eau-mongodb-v2
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
     ports:
-      - "27017:27017"
+      - "27018:27017"
 
   backend:
     build: ./backend
-    container_name: eau-backend
+    container_name: eau-backend-v2
     restart: unless-stopped
     depends_on:
       - mongodb
@@ -18,35 +18,24 @@ services:
       MONGODB_URI: mongodb://mongodb:27017/eau
       JWT_SECRET: change-moi-en-une-longue-chaine-aleatoire
       PORT: 3000
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: http://localhost:5174
       NODE_ENV: production
-      # Envoi d'email pour les alertes (optionnel — voir backend/.env.example).
-      # Laisse vide pour garder l'envoi désactivé (simulation dans les logs).
-      # Pour l'activer : crée un fichier ".env" à la RACINE du projet (à côté de
-      # ce docker-compose.yml, pas dans backend/) avec ces mêmes variables —
-      # Docker Compose le lit automatiquement.
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      SMTP_FROM: ${SMTP_FROM:-alertes@aquasuivi.local}
     ports:
-      - "3001:3000"
+      - "3002:3000"
 
   frontend:
     build:
       context: ./frontend
       args:
-        # Vue depuis le navigateur sur ta machine -> le port publié (3001),
+        # Vue depuis le navigateur sur ta machine -> le port publié (3002),
         # PAS le nom du service Docker "backend" (qui n'existe que dans le réseau interne)
-        VITE_API_URL: http://localhost:3001
-    container_name: eau-frontend
+        VITE_API_URL: http://localhost:3002
+    container_name: eau-frontend-v2
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "5173:80"
+      - "5174:80"
 
 volumes:
   mongo_data:

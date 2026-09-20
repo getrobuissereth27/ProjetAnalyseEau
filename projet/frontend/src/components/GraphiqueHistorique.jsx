@@ -8,8 +8,11 @@ import client from '../api/client';
 const SERIES = {
   ph: { libelle: 'pH', unite: '', couleur: '#2563EB' },
   turbidite: { libelle: 'Turbidité', unite: 'NTU', couleur: '#B45309' },
+  temperature: { libelle: 'Température', unite: '°C', couleur: '#DC2626' },
   conductivite: { libelle: 'Conductivité', unite: 'ppm', couleur: '#7C3AED' },
 };
+
+const DECIMALES = { ph: 2, turbidite: 0, temperature: 1, conductivite: 0 };
 
 const NB_BUCKETS = 150; // assez fin pour un zoom utile, assez grossier pour rester lisible
 
@@ -73,7 +76,7 @@ function InfoBulle({ active, payload, label }) {
         return (
           <p key={cle} style={{ ...styles.infoBulleLigne, color: s.couleur }}>
             <span style={{ ...styles.pointCouleur, background: s.couleur }} />
-            {s.libelle} : <strong>{entree.value.toFixed(cle === 'conductivite' ? 0 : 2)}</strong> {s.unite}
+            {s.libelle} : <strong>{entree.value.toFixed(DECIMALES[cle] ?? 1)}</strong> {s.unite}
           </p>
         );
       })}
@@ -81,11 +84,11 @@ function InfoBulle({ active, payload, label }) {
   );
 }
 
-export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capteurConductivite }) {
-  const [donneesBrutes, setDonneesBrutes] = useState({ ph: [], turbidite: [], conductivite: [] });
+export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capteurTemperature, capteurConductivite }) {
+  const [donneesBrutes, setDonneesBrutes] = useState({ ph: [], turbidite: [], temperature: [], conductivite: [] });
   const [chargement, setChargement] = useState(true);
 
-  const idsParCle = { ph: capteurPH, turbidite: capteurTurbidite, conductivite: capteurConductivite };
+  const idsParCle = { ph: capteurPH, turbidite: capteurTurbidite, temperature: capteurTemperature, conductivite: capteurConductivite };
 
   useEffect(() => {
     const cles = Object.entries(idsParCle).filter(([, id]) => id);
@@ -96,7 +99,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
         const reponses = await Promise.all(
           cles.map(([, id]) => client.get(`/api/mesures/historique?capteur=${id}&jours=7`))
         );
-        const nouvelles = { ph: [], turbidite: [], conductivite: [] };
+        const nouvelles = { ph: [], turbidite: [], temperature: [], conductivite: [] };
         cles.forEach(([cle], i) => { nouvelles[cle] = reponses[i].data; });
         setDonneesBrutes(nouvelles);
       } catch (err) {
@@ -109,7 +112,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
     charger();
     const intervalle = setInterval(charger, 15000);
     return () => clearInterval(intervalle);
-  }, [capteurPH, capteurTurbidite, capteurConductivite]);
+  }, [capteurPH, capteurTurbidite, capteurTemperature, capteurConductivite]);
 
   const clesActives = Object.keys(SERIES).filter((cle) => idsParCle[cle] && donneesBrutes[cle].length > 1);
   const donnees = useMemo(() => fusionnerEtAgreger(donneesBrutes), [donneesBrutes]);
@@ -129,7 +132,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
 
   return (
     <div>
-      <p style={styles.astuce}>💡 Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer sur une période</p>
+      <p style={styles.astuce}> Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer sur une période</p>
       <ResponsiveContainer width="100%" height={340}>
         <LineChart data={donnees} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
@@ -143,7 +146,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
             <YAxis
               key={cle} yAxisId={cle} orientation="left" domain={['auto', 'auto']}
               stroke={SERIES[cle].couleur} fontSize={10.5} width={44}
-              tickFormatter={(v) => v.toFixed(cle === 'ph' ? 1 : 0)}
+              tickFormatter={(v) => v.toFixed(DECIMALES[cle] ?? 0)}
               {...(i > 0 ? { hide: false } : {})}
             />
           ))}

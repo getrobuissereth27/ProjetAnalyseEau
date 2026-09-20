@@ -46,7 +46,7 @@ test("POST /api/mesures refuse une requête sans capteur_id", async () => {
 });
 
 test("POST /api/mesures enregistre une mesure valide", async () => {
-  const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH', canal_adc: 0 });
+  const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
 
   const res = await request(app)
     .post('/api/mesures')

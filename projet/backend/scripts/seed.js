@@ -13,10 +13,10 @@ const Utilisateur = require('../models/utilisateur.model');
 const NOM_SITE_DEFAUT = 'Source communautaire — Site 1';
 
 const CAPTEURS = [
-  { type: 'temperature', modele: 'DS18B20', unite: '°C', canal_adc: null, seuil: [15, 30] },
-  { type: 'pH', modele: 'DFRobot Pro V2', unite: 'pH', canal_adc: 0, seuil: [6.5, 8.5] },
-  { type: 'turbidite', modele: 'DFRobot SEN0189', unite: 'NTU', canal_adc: 1, seuil: [0, 5] },
-  { type: 'tds', modele: 'Capteur TDS générique', unite: 'ppm', canal_adc: 2, seuil: [50, 400] },
+  { type: 'temperature', modele: 'DS18B20', unite: '°C', broche: 'D2', seuil: [15, 30] },
+  { type: 'pH', modele: 'DFRobot Pro V2', unite: 'pH', broche: 'A2', seuil: [6.5, 8.5] },
+  { type: 'turbidite', modele: 'DFRobot SEN0189', unite: 'NTU', broche: 'A0', seuil: [0, 5] },
+  { type: 'tds', modele: 'Capteur TDS générique', unite: 'ppm', broche: 'A1', seuil: [50, 400] },
 ];
 
 const UTILISATEURS = [
@@ -40,7 +40,7 @@ async function run() {
     let capteur = await Capteur.findOne({ type: c.type, site_id: site._id });
     if (!capteur) {
       capteur = await Capteur.create({
-        site_id: site._id, type: c.type, modele: c.modele, unite: c.unite, canal_adc: c.canal_adc,
+        site_id: site._id, type: c.type, modele: c.modele, unite: c.unite, broche: c.broche,
       });
       console.log(`+ Capteur créé : ${c.type} (${capteur._id})`);
     } else {

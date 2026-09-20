@@ -51,6 +51,7 @@ export default function TableauDeBord() {
 
   const capteurPH = mesures.find((m) => m.type === 'pH')?.capteur_id;
   const capteurTurbidite = mesures.find((m) => m.type === 'turbidite')?.capteur_id;
+  const capteurTemperature = mesures.find((m) => m.type === 'temperature')?.capteur_id;
   const capteurConductivite = mesures.find((m) => m.type === 'tds')?.capteur_id;
 
   return (
@@ -79,6 +80,8 @@ export default function TableauDeBord() {
                 valeur={m.valeur}
                 unite={m.unite}
                 enAlerte={alertesActivesParCapteur(m.capteur_id)}
+                statut={m.statut}
+                horodatage={m.horodatage}
               />
             ))}
             {mesures.length === 0 && (
@@ -93,11 +96,12 @@ export default function TableauDeBord() {
             <div className="panel">
               <div className="panel-header">
                 <h2>Évolution sur 7 jours</h2>
-                <span className="tag">pH · Turbidité · Conductivité</span>
+                <span className="tag">pH · Turbidité · Température · Conductivité</span>
               </div>
               <GraphiqueHistorique
                 capteurPH={capteurPH}
                 capteurTurbidite={capteurTurbidite}
+                capteurTemperature={capteurTemperature}
                 capteurConductivite={capteurConductivite}
               />
             </div>

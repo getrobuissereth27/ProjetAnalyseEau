@@ -41,9 +41,9 @@ test('la vanne est ouverte quand aucune mesure n\'est hors seuil', async () => {
   const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
   await Seuil.create({ capteur_id: capteur._id, valeur_min: 6.5, valeur_max: 8.5 });
 
-  await request(app).post('/api/mesures').send({ capteur_id: capteur._id.toString(), valeur: 7.2 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteur._id.toString(), valeur: 7.2 });
 
-  const res = await request(app).get('/api/vanne/etat');
+  const res = await request(app).get('/api/valve/state');
   expect(res.status).toBe(200);
   expect(res.body.etat).toBe('ouverte');
   expect(res.body.parametresHorsLimite).toHaveLength(0);
@@ -53,9 +53,9 @@ test('la vanne se ferme dès qu\'une mesure dépasse le seuil', async () => {
   const capteur = await Capteur.create({ site_id: siteTest._id, type: 'turbidite', modele: 'Test', unite: 'NTU' });
   await Seuil.create({ capteur_id: capteur._id, valeur_min: 0, valeur_max: 5 });
 
-  await request(app).post('/api/mesures').send({ capteur_id: capteur._id.toString(), valeur: 8.4 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteur._id.toString(), valeur: 8.4 });
 
-  const res = await request(app).get('/api/vanne/etat');
+  const res = await request(app).get('/api/valve/state');
   expect(res.body.etat).toBe('fermee');
   expect(res.body.parametresHorsLimite).toHaveLength(1);
   expect(res.body.parametresHorsLimite[0].type).toBe('turbidite');
@@ -65,12 +65,12 @@ test('la vanne se rouvre automatiquement quand la mesure suivante revient dans l
   const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
   await Seuil.create({ capteur_id: capteur._id, valeur_min: 6.5, valeur_max: 8.5 });
 
-  await request(app).post('/api/mesures').send({ capteur_id: capteur._id.toString(), valeur: 9.5 }); // hors seuil
-  let res = await request(app).get('/api/vanne/etat');
+  await request(app).post('/api/measurements').send({ capteur_id: capteur._id.toString(), valeur: 9.5 }); // hors seuil
+  let res = await request(app).get('/api/valve/state');
   expect(res.body.etat).toBe('fermee');
 
-  await request(app).post('/api/mesures').send({ capteur_id: capteur._id.toString(), valeur: 7.1 }); // revenu normal
-  res = await request(app).get('/api/vanne/etat');
+  await request(app).post('/api/measurements').send({ capteur_id: capteur._id.toString(), valeur: 7.1 }); // revenu normal
+  res = await request(app).get('/api/valve/state');
   expect(res.body.etat).toBe('ouverte');
 });
 
@@ -78,9 +78,9 @@ test('ne crée pas de doublon d\'alerte si plusieurs mesures consécutives reste
   const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
   await Seuil.create({ capteur_id: capteur._id, valeur_min: 6.5, valeur_max: 8.5 });
 
-  await request(app).post('/api/mesures').send({ capteur_id: capteur._id.toString(), valeur: 9.0 });
-  await request(app).post('/api/mesures').send({ capteur_id: capteur._id.toString(), valeur: 9.2 });
-  await request(app).post('/api/mesures').send({ capteur_id: capteur._id.toString(), valeur: 9.1 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteur._id.toString(), valeur: 9.0 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteur._id.toString(), valeur: 9.2 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteur._id.toString(), valeur: 9.1 });
 
   const alertesActives = await Alerte.find({ statut: 'active' });
   expect(alertesActives).toHaveLength(1);
@@ -92,13 +92,13 @@ test('la vanne reste fermée si un seul des deux paramètres hors seuil revient 
   await Seuil.create({ capteur_id: capteurPH._id, valeur_min: 6.5, valeur_max: 8.5 });
   await Seuil.create({ capteur_id: capteurTurb._id, valeur_min: 0, valeur_max: 5 });
 
-  await request(app).post('/api/mesures').send({ capteur_id: capteurPH._id.toString(), valeur: 9.5 });
-  await request(app).post('/api/mesures').send({ capteur_id: capteurTurb._id.toString(), valeur: 8.0 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteurPH._id.toString(), valeur: 9.5 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteurTurb._id.toString(), valeur: 8.0 });
 
   // le pH revient à la normale, mais la turbidité reste hors seuil
-  await request(app).post('/api/mesures').send({ capteur_id: capteurPH._id.toString(), valeur: 7.0 });
+  await request(app).post('/api/measurements').send({ capteur_id: capteurPH._id.toString(), valeur: 7.0 });
 
-  const res = await request(app).get('/api/vanne/etat');
+  const res = await request(app).get('/api/valve/state');
   expect(res.body.etat).toBe('fermee');
   expect(res.body.parametresHorsLimite).toHaveLength(1);
   expect(res.body.parametresHorsLimite[0].type).toBe('turbidite');

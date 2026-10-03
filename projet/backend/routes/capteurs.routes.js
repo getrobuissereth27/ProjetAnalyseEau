@@ -5,7 +5,8 @@ const { proteger, exigerRole } = require('../middleware/auth.middleware');
 
 router.get('/', ctrl.listerCapteurs);
 router.post('/', proteger, exigerRole('administrateur'), ctrl.creerCapteur);
-router.patch('/:id/actif', proteger, exigerRole('administrateur'), ctrl.changerActivationCapteur);
+router.patch('/:id/active', proteger, exigerRole('administrateur'), ctrl.changerActivationCapteur);
 router.patch('/:id', proteger, exigerRole('administrateur'), ctrl.modifierCapteur);
+router.delete('/:id', proteger, exigerRole('administrateur'), ctrl.supprimerCapteur);
 
 module.exports = router;

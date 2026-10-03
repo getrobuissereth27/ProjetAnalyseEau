@@ -27,7 +27,7 @@ export default function Historique() {
 
   useEffect(() => {
     if (!siteActifId) return;
-    client.get(`/api/mesures/dernieres?site=${siteActifId}`)
+    client.get(`/api/measurements/latest?site=${siteActifId}`)
       .then((res) => setMesures(res.data))
       .catch(() => setErreur("Impossible de contacter l'API."));
   }, [siteActifId]);
@@ -41,7 +41,7 @@ export default function Historique() {
     const capteurs = { ph: idParType('pH'), turbidite: idParType('turbidite'), temperature: idParType('temperature'), tds: idParType('tds') };
     const cles = Object.entries(capteurs).filter(([, id]) => id);
 
-    Promise.all(cles.map(([, id]) => client.get(`/api/mesures/historique?capteur=${id}&jours=${jours}`)))
+    Promise.all(cles.map(([, id]) => client.get(`/api/measurements/history?capteur=${id}&jours=${jours}`)))
       .then((reponses) => {
         const donneesParCle = {};
         cles.forEach(([cle], i) => { donneesParCle[cle] = reponses[i].data; });
@@ -61,7 +61,7 @@ export default function Historique() {
     try {
       const capteurs = { ph: idParType('pH'), turbidite: idParType('turbidite'), temperature: idParType('temperature'), tds: idParType('tds') };
       const cles = Object.entries(capteurs).filter(([, id]) => id);
-      const reponses = await Promise.all(cles.map(([, id]) => client.get(`/api/mesures/historique?capteur=${id}&jours=90`)));
+      const reponses = await Promise.all(cles.map(([, id]) => client.get(`/api/measurements/history?capteur=${id}&jours=90`)));
       const donneesParCle = {};
       cles.forEach(([cle], i) => { donneesParCle[cle] = reponses[i].data; });
       const toutesLesLignes = grouperParCycle(donneesParCle);
@@ -94,7 +94,7 @@ export default function Historique() {
 
     setSuppressionEnCours(true);
     try {
-      await client.delete('/api/mesures', { data: { ids } });
+      await client.delete('/api/measurements', { data: { ids } });
       setSelectionnees((prev) => {
         const suivant = new Set(prev);
         timestamps.forEach((t) => suivant.delete(t));

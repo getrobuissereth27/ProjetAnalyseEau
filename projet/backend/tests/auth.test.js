@@ -62,15 +62,15 @@ test('POST /api/auth/login renvoie un jeton pour des identifiants valides', asyn
   expect(res.body.utilisateur.role).toBe('communautaire');
 });
 
-test('PUT /api/seuils/:id refuse sans jeton', async () => {
+test('PUT /api/thresholds/:id refuse sans jeton', async () => {
   const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
   const res = await request(app)
-    .put(`/api/seuils/${capteur._id}`)
+    .put(`/api/thresholds/${capteur._id}`)
     .send({ valeur_min: 6, valeur_max: 8 });
   expect(res.status).toBe(401);
 });
 
-test('PUT /api/seuils/:id refuse un rôle communautaire', async () => {
+test('PUT /api/thresholds/:id refuse un rôle communautaire', async () => {
   await creerUtilisateur('communautaire');
   const connexion = await request(app)
     .post('/api/auth/login')
@@ -78,14 +78,14 @@ test('PUT /api/seuils/:id refuse un rôle communautaire', async () => {
 
   const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
   const res = await request(app)
-    .put(`/api/seuils/${capteur._id}`)
+    .put(`/api/thresholds/${capteur._id}`)
     .set('Authorization', `Bearer ${connexion.body.jeton}`)
     .send({ valeur_min: 6, valeur_max: 8 });
 
   expect(res.status).toBe(403);
 });
 
-test('PUT /api/seuils/:id autorise un rôle administrateur', async () => {
+test('PUT /api/thresholds/:id autorise un rôle administrateur', async () => {
   await creerUtilisateur('administrateur');
   const connexion = await request(app)
     .post('/api/auth/login')
@@ -93,7 +93,7 @@ test('PUT /api/seuils/:id autorise un rôle administrateur', async () => {
 
   const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
   const res = await request(app)
-    .put(`/api/seuils/${capteur._id}`)
+    .put(`/api/thresholds/${capteur._id}`)
     .set('Authorization', `Bearer ${connexion.body.jeton}`)
     .send({ valeur_min: 6, valeur_max: 8 });
 

@@ -2,7 +2,7 @@ const Mesure = require('../models/mesure.model');
 const Capteur = require('../models/capteur.model');
 const { verifierSeuil } = require('../services/analyse.service');
 
-// POST /api/mesures
+// POST /api/measurements
 exports.creerMesure = async (req, res) => {
   try {
     const { capteur_id, valeur } = req.body;
@@ -24,7 +24,7 @@ exports.creerMesure = async (req, res) => {
   }
 };
 
-// GET /api/mesures/dernieres?site=<id>
+// GET /api/measurements/latest?site=<id>
 exports.dernieresMesures = async (req, res) => {
   try {
     const filtre = req.query.site ? { site_id: req.query.site } : {};
@@ -49,7 +49,7 @@ exports.dernieresMesures = async (req, res) => {
   }
 };
 
-// GET /api/mesures/historique?capteur=<id>&jours=7
+// GET /api/measurements/history?capteur=<id>&jours=7
 exports.historique = async (req, res) => {
   try {
     const { capteur, jours = 7 } = req.query;
@@ -65,7 +65,7 @@ exports.historique = async (req, res) => {
   }
 };
 
-// DELETE /api/mesures/:id
+// DELETE /api/measurements/:id
 exports.supprimerMesure = async (req, res) => {
   try {
     const mesure = await Mesure.findByIdAndDelete(req.params.id);
@@ -76,7 +76,7 @@ exports.supprimerMesure = async (req, res) => {
   }
 };
 
-// DELETE /api/mesures   body: { ids: ["...", "..."] }
+// DELETE /api/measurements   body: { ids: ["...", "..."] }
 // Suppression en masse — utilisée par la sélection multiple côté interface (page Historique).
 exports.supprimerMesures = async (req, res) => {
   try {

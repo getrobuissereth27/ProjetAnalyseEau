@@ -44,7 +44,7 @@ export default function ModifierProfil({ onFermer }) {
         payload.motDePasseActuel = motDePasseActuel;
       }
 
-      const res = await client.patch('/api/utilisateurs/moi', payload);
+      const res = await client.patch('/api/users/me', payload);
       mettreAJourUtilisateur({ nom: res.data.nom, email: res.data.email });
       setSucces(true);
       setTimeout(onFermer, 1200);

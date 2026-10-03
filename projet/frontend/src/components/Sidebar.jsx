@@ -4,7 +4,7 @@ import SelecteurSite from './SelecteurSite';
 
 const LIENS = [
   { to: '/', label: 'Tableau de bord', fin: true },
-  { to: '/historique', label: 'Historique' },
+  { to: '/history', label: 'Historique' },
   { to: '/alertes', label: 'Alertes' },
   { to: '/parametres', label: 'Paramètres (admin)', adminSeulement: true },
   { to: '/utilisateurs', label: 'Utilisateurs (admin)', adminSeulement: true },

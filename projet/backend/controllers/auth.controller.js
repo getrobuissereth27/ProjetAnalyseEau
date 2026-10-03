@@ -35,7 +35,7 @@ exports.connexion = async (req, res) => {
   }
 };
 
-// GET /api/auth/moi (nécessite un jeton valide, voir middleware)
+// GET /api/auth/me (nécessite un jeton valide, voir middleware)
 exports.profil = async (req, res) => {
   res.json(req.utilisateur);
 };

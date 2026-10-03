@@ -2,7 +2,7 @@ const Destinataire = require('../models/destinataire.model');
 
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// GET /api/destinataires?site=<id>
+// GET /api/recipients?site=<id>
 exports.listerDestinataires = async (req, res) => {
   try {
     const filtre = req.query.site ? { site_id: req.query.site } : {};
@@ -13,7 +13,7 @@ exports.listerDestinataires = async (req, res) => {
   }
 };
 
-// POST /api/destinataires   body: { site_id, email, nom? }
+// POST /api/recipients   body: { site_id, email, nom? }
 exports.ajouterDestinataire = async (req, res) => {
   try {
     const { site_id, email, nom } = req.body;
@@ -36,7 +36,7 @@ exports.ajouterDestinataire = async (req, res) => {
   }
 };
 
-// PATCH /api/destinataires/:id   body: { email?, nom?, actif? }
+// PATCH /api/recipients/:id   body: { email?, nom?, actif? }
 exports.modifierDestinataire = async (req, res) => {
   try {
     const { email, nom, actif } = req.body;
@@ -58,7 +58,7 @@ exports.modifierDestinataire = async (req, res) => {
   }
 };
 
-// DELETE /api/destinataires/:id
+// DELETE /api/recipients/:id
 exports.supprimerDestinataire = async (req, res) => {
   try {
     const destinataire = await Destinataire.findByIdAndDelete(req.params.id);

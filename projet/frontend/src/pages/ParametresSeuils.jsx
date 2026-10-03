@@ -50,7 +50,7 @@ export default function ParametresSeuils() {
 
   const charger = () => {
     if (!siteActifId) return;
-    client.get(`/api/seuils?site=${siteActifId}`)
+    client.get(`/api/thresholds?site=${siteActifId}`)
       .then((res) => setSeuils(res.data))
       .catch(() => setErreur("Impossible de charger les seuils."));
   };
@@ -81,7 +81,7 @@ export default function ParametresSeuils() {
     }
 
     try {
-      await client.put(`/api/seuils/${seuil.capteur_id._id}`, {
+      await client.put(`/api/thresholds/${seuil.capteur_id._id}`, {
         valeur_min: Number(valeur_min),
         valeur_max: Number(valeur_max),
       });
@@ -119,7 +119,7 @@ export default function ParametresSeuils() {
     }
     setEditionEnCours(true);
     try {
-      await client.patch(`/api/capteurs/${capteurId}`, {
+      await client.patch(`/api/sensors/${capteurId}`, {
         modele: editionModele.trim(),
         broche: editionBroche,
       });
@@ -134,10 +134,29 @@ export default function ParametresSeuils() {
 
   const changerActivation = async (capteurId, actif) => {
     try {
-      await client.patch(`/api/capteurs/${capteurId}/actif`, { actif });
+      await client.patch(`/api/sensors/${capteurId}/active`, { actif });
       charger();
     } catch (err) {
       setMessages((m) => ({ ...m, [capteurId]: '✘ Erreur' }));
+    }
+  };
+
+  const [suppressionEnCours, setSuppressionEnCours] = useState(null);
+
+  const supprimerCapteur = async (capteur) => {
+    if (!window.confirm(
+      `Supprimer définitivement le capteur "${capteur.type}" (${capteur.modele}) ?\n\n` +
+      `Toutes ses mesures, son seuil et ses alertes seront aussi supprimés. Cette action est irréversible.`
+    )) return;
+
+    setSuppressionEnCours(capteur._id);
+    try {
+      await client.delete(`/api/sensors/${capteur._id}`);
+      charger();
+    } catch (err) {
+      setMessages((m) => ({ ...m, [capteur._id]: err.response?.data?.erreur || '✘ Impossible de supprimer' }));
+    } finally {
+      setSuppressionEnCours(null);
     }
   };
 
@@ -153,7 +172,7 @@ export default function ParametresSeuils() {
 
     setAjoutEnCours(true);
     try {
-      await client.post('/api/capteurs', {
+      await client.post('/api/sensors', {
         site_id: siteActifId,
         type,
         modele: nouveauModele.trim(),
@@ -178,7 +197,7 @@ export default function ParametresSeuils() {
   return (
     <Layout titre="Configuration des seuils d'alerte" sousTitre='Cas d’utilisation : « Configurer les seuils d’alerte »'>
       <div style={styles.banniereRole}>
-        Page réservée au rôle Administrateur — invisible pour le Responsable CAEPA
+        🔒 Page réservée au rôle Administrateur — invisible pour le Responsable CAEPA
       </div>
 
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}
@@ -363,6 +382,13 @@ export default function ParametresSeuils() {
                     <>
                       <button style={styles.bouton} onClick={() => enregistrer(s)}>Enregistrer</button>
                       <button style={styles.boutonBascule} onClick={() => commencerEditionCapteur(s.capteur_id)}>Remplacer</button>
+                      <button
+                        style={styles.boutonDanger}
+                        onClick={() => supprimerCapteur(s.capteur_id)}
+                        disabled={suppressionEnCours === s.capteur_id._id}
+                      >
+                        {suppressionEnCours === s.capteur_id._id ? '…' : '🗑 Supprimer'}
+                      </button>
                       {messages[s.capteur_id._id] && <span style={{ fontSize: 12 }}>{messages[s.capteur_id._id]}</span>}
                     </>
                   )}
@@ -394,4 +420,5 @@ const styles = {
   champEdition: { fontSize: 12.5, padding: '5px 8px', border: '1px solid #0F766E', borderRadius: 6, width: '100%', maxWidth: 180, boxSizing: 'border-box' },
   puceStatut: { fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, whiteSpace: 'nowrap' },
   boutonBascule: { fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155', cursor: 'pointer', whiteSpace: 'nowrap' },
+  boutonDanger: { fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', cursor: 'pointer', whiteSpace: 'nowrap' },
 };

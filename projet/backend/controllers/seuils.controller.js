@@ -1,7 +1,7 @@
 const Seuil = require('../models/seuil.model');
 const Capteur = require('../models/capteur.model');
 
-// GET /api/seuils?site=<id>
+// GET /api/thresholds?site=<id>
 // Part de la liste des CAPTEURS (pas des seuils), pour qu'un capteur tout juste
 // créé apparaisse aussi dans le tableau — même avant qu'un seuil lui soit défini.
 exports.listerSeuils = async (req, res) => {
@@ -27,7 +27,7 @@ exports.listerSeuils = async (req, res) => {
   }
 };
 
-// PUT /api/seuils/:capteurId
+// PUT /api/thresholds/:capteurId
 exports.modifierSeuil = async (req, res) => {
   try {
     const { valeur_min, valeur_max } = req.body;

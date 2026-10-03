@@ -24,7 +24,7 @@ export default function ChangerMotDePasse({ onFermer }) {
 
     setEnCours(true);
     try {
-      await client.patch('/api/utilisateurs/moi/mot-de-passe', { motDePasseActuel, nouveauMotDePasse });
+      await client.patch('/api/users/me/password', { motDePasseActuel, nouveauMotDePasse });
       setSucces(true);
       setTimeout(onFermer, 1500);
     } catch (err) {

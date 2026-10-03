@@ -55,8 +55,8 @@ Ce script crée aussi 2 comptes de démonstration pour te connecter au tableau d
 | `admin@demo.local` | `motdepasse123` | Administrateur (accès à "Paramètres") |
 
 C'est tout. Ouvre ensuite :
-- Le tableau de bord : http://localhost:5173 (tu seras redirigé vers la page de connexion)
-- L'API : http://localhost:3001/api/sante (doit répondre `{"statut":"ok"}`)
+- Le tableau de bord : http://localhost:5174 (tu seras redirigé vers la page de connexion)
+- L'API : http://localhost:3002/api/health (doit répondre `{"statut":"ok"}`)
 
 Le client Raspberry Pi (Python), lui, **reste hors de Docker** — il est fait pour
 tourner directement sur le Raspberry Pi ou sur ton ordinateur en simulation (voir
@@ -86,11 +86,11 @@ Ensuite, pointe vers l'API (adapte selon ton OS) :
 
 Linux / Mac :
 ```bash
-API_URL=http://localhost:3001 python3 main.py
+API_URL=http://localhost:3002 python3 main.py
 ```
 Windows (PowerShell) :
 ```powershell
-$env:API_URL="http://localhost:3001"; python main.py
+$env:API_URL="http://localhost:3002"; python main.py
 ```
 
 Pour arrêter les conteneurs :
@@ -100,22 +100,24 @@ docker compose down          # arrête tout
 docker compose down -v       # arrête tout ET efface les données MongoDB
 ```
 
-**⚠️ Point de transparence** : cette configuration Docker n'a pas pu être testée dans
-mon environnement de préparation (Docker n'y est pas installé). J'ai vérifié tout ce
-qui pouvait l'être sans Docker lui-même (syntaxe YAML valide, cohérence des ports et
-variables d'environnement, dépendances présentes dans l'image de production). Si
-quelque chose ne démarre pas comme prévu chez toi, montre-moi le message d'erreur
-exact et on corrige ensemble.
+**⚠️ Point de transparence** : cette configuration Docker a été vérifiée pour sa
+cohérence (syntaxe YAML, ports et variables d'environnement, dépendances de l'image
+de production) mais pas exécutée de bout en bout dans mon environnement de
+préparation. Un premier test réel a d'ailleurs révélé que les numéros de port donnés
+plus haut dans une version antérieure de ce README (3001 et 5173) ne correspondaient
+pas à `docker-compose.yml` (3002 et 5174) — c'est corrigé ci-dessus. Si quelque chose
+d'autre ne démarre pas comme prévu chez toi, montre-moi le message d'erreur exact et
+on corrige ensemble.
 
 ### En cas de conflit de port
 
-L'API est publiée sur le port **3001** (et non 3000) car ce dernier est souvent déjà
+L'API est publiée sur le port **3002** (et non 3000) car ce dernier est souvent déjà
 utilisé par un autre programme sur Windows. Si tu vois une erreur du type
 `port is already allocated`, deux solutions :
 1. Identifie et arrête le programme qui occupe le port concerné :
-   `netstat -ano | findstr :3001` (Windows) puis `Stop-Process -Id <PID> -Force`
+   `netstat -ano | findstr :3002` (Windows) puis `Stop-Process -Id <PID> -Force`
 2. Ou change simplement le port dans `docker-compose.yml` (les deux occurrences
-   `3001:3000` et `http://localhost:3001`) pour un autre numéro libre, ex. `3002`.
+   `3002:3000` et `http://localhost:3002`) pour un autre numéro libre.
 
 Après toute modification de `docker-compose.yml`, relance avec
 `docker compose down` puis `docker compose up --build`.
@@ -161,7 +163,7 @@ npm run dev
 Tu dois voir `✔ API démarrée sur http://localhost:3000`. Vérifie avec :
 
 ```bash
-curl http://localhost:3000/api/sante
+curl http://localhost:3000/api/health
 # doit répondre {"statut":"ok"}
 ```
 
@@ -262,7 +264,7 @@ Le système ferme automatiquement la vanne (simulée par une LED) dès qu'un par
 sort des seuils, et la rouvre dès que tout redevient normal — sans action humaine.
 
 **Comment ça marche** : c'est le **serveur** qui décide (à partir des alertes actives
-en base), pas le Raspberry Pi. À chaque cycle, le client interroge `GET /api/vanne/etat`
+en base), pas le Raspberry Pi. À chaque cycle, le client interroge `GET /api/valve/state`
 et met à jour la LED en conséquence — le Raspberry Pi ne fait qu'exécuter la décision.
 
 **Câblage sur le vrai Raspberry Pi** : une LED + une résistance ~330 Ω entre le
@@ -302,11 +304,12 @@ existants — un simple clic change instantanément toutes les données affiché
 sélecteur, qui ouvre un petit formulaire (nom + localisation optionnelle).
 
 **Rattacher des capteurs à un nouveau site** : après création d'un site, ses capteurs
-ne sont pas créés automatiquement. Utilise `POST /api/capteurs` avec le `site_id` du
+ne sont pas créés automatiquement. Utilise `POST /api/sensors` avec le `site_id` du
 nouveau site (visible dans `GET /api/sites`), par exemple :
 
 ```bash
-curl -X POST http://localhost:3001/api/capteurs \
+# Remplace le port : 3002 avec Docker (Option A), 3000 sans Docker (Option B)
+curl -X POST http://localhost:3002/api/sensors \
   -H "Authorization: Bearer <jeton_admin>" \
   -H "Content-Type: application/json" \
   -d '{"site_id":"<id_du_nouveau_site>","type":"pH","modele":"DFRobot Pro V2","unite":"pH","canal_adc":0}'

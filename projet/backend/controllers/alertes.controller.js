@@ -10,7 +10,7 @@ async function idsCapteursDuSite(siteId) {
   return capteurs.map((c) => c._id);
 }
 
-// GET /api/alertes?statut=active&page=1&limite=15&site=<id>
+// GET /api/alerts?statut=active&page=1&limite=15&site=<id>
 exports.listerAlertes = async (req, res) => {
   try {
     const filtre = req.query.statut ? { statut: req.query.statut } : {};
@@ -45,7 +45,7 @@ exports.listerAlertes = async (req, res) => {
   }
 };
 
-// DELETE /api/alertes/:id
+// DELETE /api/alerts/:id
 exports.supprimerAlerte = async (req, res) => {
   try {
     const alerte = await Alerte.findByIdAndDelete(req.params.id);
@@ -56,7 +56,7 @@ exports.supprimerAlerte = async (req, res) => {
   }
 };
 
-// DELETE /api/alertes   body: { ids: ["...", "..."] }
+// DELETE /api/alerts   body: { ids: ["...", "..."] }
 // Suppression en masse — utilisée par la sélection multiple côté interface (page Alertes).
 exports.supprimerAlertes = async (req, res) => {
   try {

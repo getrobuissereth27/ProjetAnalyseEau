@@ -4,6 +4,6 @@ const ctrl = require('../controllers/auth.controller');
 const { proteger } = require('../middleware/auth.middleware');
 
 router.post('/login', ctrl.connexion);
-router.get('/moi', proteger, ctrl.profil);
+router.get('/me', proteger, ctrl.profil);
 
 module.exports = router;

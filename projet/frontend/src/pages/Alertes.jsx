@@ -28,12 +28,12 @@ export default function Alertes() {
     const params = new URLSearchParams({ page, limite: LIMITE, site: siteActifId });
     if (filtreStatut) params.set('statut', filtreStatut);
 
-    client.get(`/api/alertes?${params.toString()}`)
+    client.get(`/api/alerts?${params.toString()}`)
       .then((res) => setDonnees(res.data))
       .catch(() => setErreur("Impossible de charger les alertes."));
 
-    client.get(`/api/seuils?site=${siteActifId}`).then((res) => setSeuils(res.data)).catch(() => {});
-    client.get(`/api/vanne/etat?site=${siteActifId}`).then((res) => setVanneActuelle(res.data)).catch(() => {});
+    client.get(`/api/thresholds?site=${siteActifId}`).then((res) => setSeuils(res.data)).catch(() => {});
+    client.get(`/api/valve/state?site=${siteActifId}`).then((res) => setVanneActuelle(res.data)).catch(() => {});
   }, [page, filtreStatut, siteActifId, versionRafraichissement]);
 
   const changerFiltre = (statut) => {
@@ -49,7 +49,7 @@ export default function Alertes() {
     try {
       const params = new URLSearchParams({ page: 1, limite: 100, site: siteActifId });
       if (filtreStatut) params.set('statut', filtreStatut);
-      const res = await client.get(`/api/alertes?${params.toString()}`);
+      const res = await client.get(`/api/alerts?${params.toString()}`);
       if (format === 'csv') exporterAlertesCSV(res.data.resultats, 'alertes.csv');
       else exporterAlertesExcel(res.data.resultats, 'alertes.xlsx');
     } catch (err) {
@@ -78,9 +78,9 @@ export default function Alertes() {
     setSuppressionEnCours(true);
     try {
       if (ids.length === 1) {
-        await client.delete(`/api/alertes/${ids[0]}`);
+        await client.delete(`/api/alerts/${ids[0]}`);
       } else {
-        await client.delete('/api/alertes', { data: { ids } });
+        await client.delete('/api/alerts', { data: { ids } });
       }
       setSelectionnees(new Set());
       setVersionRafraichissement((v) => v + 1);

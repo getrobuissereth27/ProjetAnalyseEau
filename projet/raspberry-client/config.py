@@ -32,9 +32,10 @@ CAPTEURS_ID = {
     "tds": os.environ.get("ID_CAPTEUR_TDS", ""),
 }
 
-CANAL_PH = 0
-CANAL_TURBIDITE = 1
-CANAL_TDS = 2
+# Port série de l'Arduino Mega. '*' = motif auto-détecté (utile car le port
+# peut être /dev/ttyACM0 ou /dev/ttyACM1 selon l'ordre de branchement USB).
+PORT_SERIE = os.environ.get("PORT_SERIE", "/dev/ttyACM*")
+BAUDRATE = int(os.environ.get("BAUDRATE", "9600"))
 
 # GPIO (numérotation BCM) de la LED simulant l'électrovanne
 PIN_LED_VANNE = int(os.environ.get("PIN_LED_VANNE", "17"))

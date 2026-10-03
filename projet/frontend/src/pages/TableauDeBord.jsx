@@ -23,9 +23,9 @@ export default function TableauDeBord() {
     const charger = async () => {
       try {
         const [resMesures, resAlertes, resVanne] = await Promise.all([
-          client.get(`/api/mesures/dernieres?site=${siteActifId}`),
-          client.get(`/api/alertes?page=1&limite=8&site=${siteActifId}`),
-          client.get(`/api/vanne/etat?site=${siteActifId}`),
+          client.get(`/api/measurements/latest?site=${siteActifId}`),
+          client.get(`/api/alerts?page=1&limite=8&site=${siteActifId}`),
+          client.get(`/api/valve/state?site=${siteActifId}`),
         ]);
         setMesures(resMesures.data);
         setAlertes(resAlertes.data);

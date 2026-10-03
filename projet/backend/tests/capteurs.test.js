@@ -45,9 +45,9 @@ beforeEach(async () => {
   jetonAdmin = connexion.body.jeton;
 });
 
-test("POST /api/capteurs crée un capteur avec succès", async () => {
+test("POST /api/sensors crée un capteur avec succès", async () => {
   const res = await request(app)
-    .post('/api/capteurs')
+    .post('/api/sensors')
     .set('Authorization', `Bearer ${jetonAdmin}`)
     .send({ site_id: siteTest._id.toString(), type: 'pH', modele: 'Test', unite: 'pH' });
 
@@ -55,29 +55,29 @@ test("POST /api/capteurs crée un capteur avec succès", async () => {
   expect(res.body.type).toBe('pH');
 });
 
-test("POST /api/capteurs refuse une requête avec un champ requis manquant", async () => {
+test("POST /api/sensors refuse une requête avec un champ requis manquant", async () => {
   const res = await request(app)
-    .post('/api/capteurs')
+    .post('/api/sensors')
     .set('Authorization', `Bearer ${jetonAdmin}`)
     .send({ site_id: siteTest._id.toString(), type: 'pH' }); // modele et unite manquants
 
   expect(res.status).toBe(400);
 });
 
-test("POST /api/capteurs refuse une requête sans jeton d'administrateur", async () => {
+test("POST /api/sensors refuse une requête sans jeton d'administrateur", async () => {
   const res = await request(app)
-    .post('/api/capteurs')
+    .post('/api/sensors')
     .send({ site_id: siteTest._id.toString(), type: 'pH', modele: 'Test', unite: 'pH' });
 
   expect(res.status).toBe(401);
 });
 
-test("GET /api/capteurs?site=... ne retourne que les capteurs de ce site", async () => {
+test("GET /api/sensors?site=... ne retourne que les capteurs de ce site", async () => {
   const autreSite = await Site.create({ nom: 'Autre site' });
   await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
   await Capteur.create({ site_id: autreSite._id, type: 'turbidite', modele: 'Test', unite: 'NTU' });
 
-  const res = await request(app).get(`/api/capteurs?site=${siteTest._id}`);
+  const res = await request(app).get(`/api/sensors?site=${siteTest._id}`);
 
   expect(res.status).toBe(200);
   expect(res.body).toHaveLength(1);

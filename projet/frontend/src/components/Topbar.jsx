@@ -49,13 +49,13 @@ export default function Topbar({ titre, sousTitre }) {
                   style={styles.itemMenu}
                   onClick={() => { setModalProfilOuvert(true); setMenuOuvert(false); }}
                 >
-                  Modifier mon profil
+                  ✏️ Modifier mon profil
                 </button>
                 <button
                   style={styles.itemMenu}
                   onClick={() => { setModalMotDePasseOuvert(true); setMenuOuvert(false); }}
                 >
-                  Changer mon mot de passe
+                  🔑 Changer mon mot de passe
                 </button>
                 <button style={{ ...styles.itemMenu, color: '#B91C1C' }} onClick={seDeconnecter}>
                   ↪ Se déconnecter

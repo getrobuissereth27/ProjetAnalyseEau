@@ -97,7 +97,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
     const charger = async () => {
       try {
         const reponses = await Promise.all(
-          cles.map(([, id]) => client.get(`/api/mesures/historique?capteur=${id}&jours=7`))
+          cles.map(([, id]) => client.get(`/api/measurements/history?capteur=${id}&jours=7`))
         );
         const nouvelles = { ph: [], turbidite: [], temperature: [], conductivite: [] };
         cles.forEach(([cle], i) => { nouvelles[cle] = reponses[i].data; });
@@ -132,7 +132,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
 
   return (
     <div>
-      <p style={styles.astuce}> Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer sur une période</p>
+      <p style={styles.astuce}>💡 Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer sur une période</p>
       <ResponsiveContainer width="100%" height={340}>
         <LineChart data={donnees} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />

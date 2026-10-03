@@ -1,6 +1,6 @@
 const Alerte = require('../models/alerte.model');
 
-// GET /api/vanne/etat?site=<id>
+// GET /api/valve/state?site=<id>
 // La vanne est OUVERTE par défaut. Elle est FERMÉE dès qu'au moins une alerte
 // est active POUR CE SITE — chaque site a sa propre vanne physique, donc un
 // problème sur le site 2 ne doit jamais fermer la vanne du site 1.

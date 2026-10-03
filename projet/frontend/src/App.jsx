@@ -19,7 +19,7 @@ export default function App() {
           <Routes>
             <Route path="/connexion" element={<Connexion />} />
             <Route path="/" element={<RouteProtegee><TableauDeBord /></RouteProtegee>} />
-            <Route path="/historique" element={<RouteProtegee><Historique /></RouteProtegee>} />
+            <Route path="/history" element={<RouteProtegee><Historique /></RouteProtegee>} />
             <Route path="/alertes" element={<RouteProtegee><Alertes /></RouteProtegee>} />
             <Route
               path="/parametres"

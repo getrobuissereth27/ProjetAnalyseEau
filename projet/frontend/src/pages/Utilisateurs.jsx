@@ -25,7 +25,7 @@ export default function Utilisateurs() {
   const [erreurEdition, setErreurEdition] = useState(null);
 
   const charger = () => {
-    client.get('/api/utilisateurs')
+    client.get('/api/users')
       .then((res) => setUtilisateurs(res.data))
       .catch(() => setErreur("Impossible de charger les utilisateurs."))
       .finally(() => setChargement(false));
@@ -38,7 +38,7 @@ export default function Utilisateurs() {
     setErreurAjout(null);
     setAjoutEnCours(true);
     try {
-      await client.post('/api/utilisateurs', { nom, email, motDePasse, role });
+      await client.post('/api/users', { nom, email, motDePasse, role });
       setNom(''); setEmail(''); setMotDePasse(''); setRole('communautaire');
       setFormOuvert(false);
       charger();
@@ -51,7 +51,7 @@ export default function Utilisateurs() {
 
   const changerRole = async (id, nouveauRole) => {
     try {
-      await client.patch(`/api/utilisateurs/${id}/role`, { role: nouveauRole });
+      await client.patch(`/api/users/${id}/role`, { role: nouveauRole });
       charger();
     } catch (err) {
       setErreur(err.response?.data?.erreur || "Impossible de changer ce rôle.");
@@ -78,7 +78,7 @@ export default function Utilisateurs() {
     }
     setModificationEnCours(true);
     try {
-      const res = await client.patch(`/api/utilisateurs/${id}`, { nom: editionNom.trim(), email: editionEmail.trim() });
+      const res = await client.patch(`/api/users/${id}`, { nom: editionNom.trim(), email: editionEmail.trim() });
       if (id === moi?.id) mettreAJourUtilisateur({ nom: res.data.nom, email: res.data.email });
       setEditionId(null);
       charger();
@@ -92,7 +92,7 @@ export default function Utilisateurs() {
   const supprimer = async (id, nomCible) => {
     if (!window.confirm(`Supprimer le compte de ${nomCible} ? Cette action est irréversible.`)) return;
     try {
-      await client.delete(`/api/utilisateurs/${id}`);
+      await client.delete(`/api/users/${id}`);
       charger();
     } catch (err) {
       setErreur(err.response?.data?.erreur || "Impossible de supprimer cet utilisateur.");

@@ -3,7 +3,7 @@ const Utilisateur = require('../models/utilisateur.model');
 
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// GET /api/utilisateurs   (administrateur uniquement)
+// GET /api/users   (administrateur uniquement)
 exports.listerUtilisateurs = async (req, res) => {
   try {
     const utilisateurs = await Utilisateur.find().select('-motDePasseHash').sort({ createdAt: 1 });
@@ -13,7 +13,7 @@ exports.listerUtilisateurs = async (req, res) => {
   }
 };
 
-// POST /api/utilisateurs   (administrateur uniquement)
+// POST /api/users   (administrateur uniquement)
 exports.creerUtilisateur = async (req, res) => {
   try {
     const { nom, email, motDePasse, role } = req.body;
@@ -43,10 +43,10 @@ exports.creerUtilisateur = async (req, res) => {
   }
 };
 
-// PATCH /api/utilisateurs/moi   body: { nom?, email?, motDePasseActuel? }
+// PATCH /api/users/me   body: { nom?, email?, motDePasseActuel? }
 // Accessible à n'importe quel utilisateur connecté. Le nom se modifie librement ;
 // l'email, étant l'identifiant de connexion, exige le mot de passe actuel en
-// confirmation (comme pour /moi/mot-de-passe), pour éviter qu'une session
+// confirmation (comme pour /me/password), pour éviter qu'une session
 // laissée ouverte permette de détourner le compte en changeant son email.
 exports.modifierMonProfil = async (req, res) => {
   try {
@@ -93,7 +93,7 @@ exports.modifierMonProfil = async (req, res) => {
   }
 };
 
-// PATCH /api/utilisateurs/:id   body: { nom?, email? }   (administrateur uniquement)
+// PATCH /api/users/:id   body: { nom?, email? }   (administrateur uniquement)
 // Corrige le nom ou l'email d'un compte existant — distinct de /role et /mot-de-passe.
 exports.modifierUtilisateur = async (req, res) => {
   try {
@@ -120,7 +120,7 @@ exports.modifierUtilisateur = async (req, res) => {
   }
 };
 
-// PATCH /api/utilisateurs/:id/role   body: { role }   (administrateur uniquement)
+// PATCH /api/users/:id/role   body: { role }   (administrateur uniquement)
 exports.changerRole = async (req, res) => {
   try {
     const { role } = req.body;
@@ -141,7 +141,7 @@ exports.changerRole = async (req, res) => {
   }
 };
 
-// DELETE /api/utilisateurs/:id   (administrateur uniquement)
+// DELETE /api/users/:id   (administrateur uniquement)
 exports.supprimerUtilisateur = async (req, res) => {
   try {
     if (req.params.id === req.utilisateur.id) {
@@ -165,7 +165,7 @@ exports.supprimerUtilisateur = async (req, res) => {
   }
 };
 
-// PATCH /api/utilisateurs/moi/mot-de-passe   body: { motDePasseActuel, nouveauMotDePasse }
+// PATCH /api/users/me/password   body: { motDePasseActuel, nouveauMotDePasse }
 // Accessible à n'importe quel utilisateur connecté, pas seulement l'administrateur.
 exports.changerMonMotDePasse = async (req, res) => {
   try {

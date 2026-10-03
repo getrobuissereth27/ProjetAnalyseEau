@@ -13,7 +13,7 @@ export default function GestionDestinataires() {
 
   const charger = () => {
     if (!siteActifId) return;
-    client.get(`/api/destinataires?site=${siteActifId}`)
+    client.get(`/api/recipients?site=${siteActifId}`)
       .then((res) => setDestinataires(res.data))
       .catch(() => setErreur('Impossible de charger les destinataires.'))
       .finally(() => setChargement(false));
@@ -26,7 +26,7 @@ export default function GestionDestinataires() {
     setErreur(null);
     setAjoutEnCours(true);
     try {
-      await client.post('/api/destinataires', { site_id: siteActifId, email: email.trim(), nom: nom.trim() });
+      await client.post('/api/recipients', { site_id: siteActifId, email: email.trim(), nom: nom.trim() });
       setNom('');
       setEmail('');
       charger();
@@ -39,7 +39,7 @@ export default function GestionDestinataires() {
 
   const basculerActif = async (id, actif) => {
     try {
-      await client.patch(`/api/destinataires/${id}`, { actif: !actif });
+      await client.patch(`/api/recipients/${id}`, { actif: !actif });
       charger();
     } catch (err) {
       setErreur('Impossible de modifier ce destinataire.');
@@ -49,7 +49,7 @@ export default function GestionDestinataires() {
   const supprimer = async (id) => {
     if (!window.confirm('Retirer ce destinataire des notifications par email ?')) return;
     try {
-      await client.delete(`/api/destinataires/${id}`);
+      await client.delete(`/api/recipients/${id}`);
       charger();
     } catch (err) {
       setErreur('Impossible de supprimer ce destinataire.');

@@ -9,7 +9,7 @@ def envoyer_mesure(capteur_id, valeur):
 
     payload = {'capteur_id': capteur_id, 'valeur': valeur}
     try:
-        reponse = requests.post(f'{API_URL}/api/mesures', json=payload, timeout=TIMEOUT_SECONDES)
+        reponse = requests.post(f'{API_URL}/api/measurements', json=payload, timeout=TIMEOUT_SECONDES)
         reponse.raise_for_status()
         return True
     except requests.exceptions.RequestException as erreur:
@@ -22,7 +22,7 @@ def recuperer_capteurs():
     Filtré par SITE_ID si renseigné, pour ne récupérer que les capteurs de ce site."""
     try:
         params = {'site': SITE_ID} if SITE_ID else {}
-        reponse = requests.get(f'{API_URL}/api/capteurs', params=params, timeout=TIMEOUT_SECONDES)
+        reponse = requests.get(f'{API_URL}/api/sensors', params=params, timeout=TIMEOUT_SECONDES)
         reponse.raise_for_status()
         return reponse.json()
     except requests.exceptions.RequestException as erreur:
@@ -36,7 +36,7 @@ def recuperer_etat_vanne():
     Raspberry Pi ne fait qu'appliquer cette décision sur la LED."""
     try:
         params = {'site': SITE_ID} if SITE_ID else {}
-        reponse = requests.get(f'{API_URL}/api/vanne/etat', params=params, timeout=TIMEOUT_SECONDES)
+        reponse = requests.get(f'{API_URL}/api/valve/state', params=params, timeout=TIMEOUT_SECONDES)
         reponse.raise_for_status()
         return reponse.json()
     except requests.exceptions.RequestException as erreur:

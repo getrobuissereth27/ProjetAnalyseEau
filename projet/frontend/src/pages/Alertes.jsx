@@ -4,12 +4,14 @@ import Layout from '../components/Layout';
 import DetailAlerte from '../components/DetailAlerte';
 import { useSite } from '../sites/SiteContext';
 import { useAuth } from '../auth/AuthContext';
+import { useConfirmer } from '../confirm/ConfirmContext';
 import { exporterAlertesCSV, exporterAlertesExcel } from '../utils/export';
 
 export default function Alertes() {
   const { siteActifId } = useSite();
   const { utilisateur } = useAuth();
   const estAdmin = utilisateur?.role === 'administrateur';
+  const confirmer = useConfirmer();
   const [donnees, setDonnees] = useState({ resultats: [], total: 0, page: 1, totalPages: 1 });
   const [page, setPage] = useState(1);
   const [filtreStatut, setFiltreStatut] = useState('');
@@ -73,7 +75,12 @@ export default function Alertes() {
 
   const supprimerAlertes = async (ids) => {
     if (ids.length === 0) return;
-    if (!window.confirm(`Supprimer définitivement ${ids.length} alerte(s) ? Cette action est irréversible.`)) return;
+    const ok = await confirmer({
+      titre: ids.length > 1 ? `Supprimer ${ids.length} alertes ?` : 'Supprimer cette alerte ?',
+      message: 'Suppression définitive. Cette action est irréversible.',
+      texteConfirmer: 'Supprimer',
+    });
+    if (!ok) return;
 
     setSuppressionEnCours(true);
     try {

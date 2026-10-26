@@ -6,12 +6,14 @@ import { grouperParCycle } from '../utils/mesures';
 import { exporterCSV, exporterExcel } from '../utils/export';
 import { useSite } from '../sites/SiteContext';
 import { useAuth } from '../auth/AuthContext';
+import { useConfirmer } from '../confirm/ConfirmContext';
 
 const NB_LIGNES_VISIBLES = 10;
 const HAUTEUR_LIGNE = 40; // px, doit correspondre au padding défini dans le style des cellules
 const CLES_CAPTEURS = ['ph', 'turbidite', 'temperature', 'tds'];
 
 export default function Historique() {
+  const confirmer = useConfirmer();
   const { siteActifId } = useSite();
   const { utilisateur } = useAuth();
   const estAdmin = utilisateur?.role === 'administrateur';
@@ -90,7 +92,12 @@ export default function Historique() {
   const supprimerLignes = async (timestamps) => {
     const ids = lignes.filter((l) => timestamps.includes(l.t)).flatMap(idsDeLaLigne);
     if (ids.length === 0) return;
-    if (!window.confirm(`Supprimer définitivement ${ids.length} mesure(s) ? Cette action est irréversible.`)) return;
+    const ok = await confirmer({
+      titre: ids.length > 1 ? `Supprimer ${ids.length} mesures ?` : 'Supprimer cette mesure ?',
+      message: 'Suppression définitive. Cette action est irréversible.',
+      texteConfirmer: 'Supprimer',
+    });
+    if (!ok) return;
 
     setSuppressionEnCours(true);
     try {

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import client from '../api/client';
 import { useSite } from '../sites/SiteContext';
+import { useConfirmer } from '../confirm/ConfirmContext';
 
 export default function GestionDestinataires() {
   const { siteActifId } = useSite();
+  const confirmer = useConfirmer();
   const [destinataires, setDestinataires] = useState([]);
   const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
@@ -47,7 +49,12 @@ export default function GestionDestinataires() {
   };
 
   const supprimer = async (id) => {
-    if (!window.confirm('Retirer ce destinataire des notifications par email ?')) return;
+    const ok = await confirmer({
+      titre: 'Retirer ce destinataire ?',
+      message: 'Il ne recevra plus les alertes par email.',
+      texteConfirmer: 'Retirer',
+    });
+    if (!ok) return;
     try {
       await client.delete(`/api/recipients/${id}`);
       charger();

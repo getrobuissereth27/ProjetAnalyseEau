@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import client from '../api/client';
 import Layout from '../components/Layout';
 import { useAuth } from '../auth/AuthContext';
+import { useConfirmer } from '../confirm/ConfirmContext';
 
 const LIBELLES_ROLE = { administrateur: 'Administrateur', communautaire: 'Responsable CAEPA' };
 
 export default function Utilisateurs() {
   const { utilisateur: moi, mettreAJourUtilisateur } = useAuth();
+  const confirmer = useConfirmer();
   const [utilisateurs, setUtilisateurs] = useState([]);
   const [erreur, setErreur] = useState(null);
   const [chargement, setChargement] = useState(true);
@@ -90,7 +92,12 @@ export default function Utilisateurs() {
   };
 
   const supprimer = async (id, nomCible) => {
-    if (!window.confirm(`Supprimer le compte de ${nomCible} ? Cette action est irréversible.`)) return;
+    const ok = await confirmer({
+      titre: 'Supprimer ce compte ?',
+      message: `Le compte de ${nomCible} sera supprimé. Cette action est irréversible.`,
+      texteConfirmer: 'Supprimer',
+    });
+    if (!ok) return;
     try {
       await client.delete(`/api/users/${id}`);
       charger();
@@ -216,7 +223,7 @@ export default function Utilisateurs() {
                       ) : (
                         <>
                           <button style={styles.boutonModifier} onClick={() => commencerEdition(u)}>
-                            ✏️ Modifier
+                            Modifier
                           </button>{' '}
                           {!cestMoi && (
                             <button style={styles.boutonSuppr} onClick={() => supprimer(u._id, u.nom)}>

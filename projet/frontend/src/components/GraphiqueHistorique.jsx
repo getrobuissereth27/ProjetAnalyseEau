@@ -132,8 +132,9 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
 
   return (
     <div>
-      <p style={styles.astuce}>💡 Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer sur une période</p>
-      <ResponsiveContainer width="100%" height={340}>
+      <p style={styles.astuce}> Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer sur une période</p>
+      <div className="graphique-hauteur">
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={donnees} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
 
@@ -178,6 +179,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

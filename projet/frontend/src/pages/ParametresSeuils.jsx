@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import GestionDestinataires from '../components/GestionDestinataires';
 import PortsArduino from '../components/PortsArduino';
 import { useSite } from '../sites/SiteContext';
+import { useConfirmer } from '../confirm/ConfirmContext';
 
 const TYPES_CONNUS = [
   { valeur: 'pH', unite: 'pH', numerique: false },
@@ -22,6 +23,7 @@ const STATUT_INFO = {
 };
 
 export default function ParametresSeuils() {
+  const confirmer = useConfirmer();
   const { siteActifId } = useSite();
   const [seuils, setSeuils] = useState([]);
   const [modifications, setModifications] = useState({});
@@ -144,10 +146,12 @@ export default function ParametresSeuils() {
   const [suppressionEnCours, setSuppressionEnCours] = useState(null);
 
   const supprimerCapteur = async (capteur) => {
-    if (!window.confirm(
-      `Supprimer définitivement le capteur "${capteur.type}" (${capteur.modele}) ?\n\n` +
-      `Toutes ses mesures, son seuil et ses alertes seront aussi supprimés. Cette action est irréversible.`
-    )) return;
+    const ok = await confirmer({
+      titre: `Supprimer le capteur « ${capteur.type} » ?`,
+      message: `Modèle : ${capteur.modele}\n\nToutes ses mesures, son seuil et ses alertes seront aussi supprimés. Cette action est irréversible.`,
+      texteConfirmer: 'Supprimer le capteur',
+    });
+    if (!ok) return;
 
     setSuppressionEnCours(capteur._id);
     try {
@@ -197,7 +201,7 @@ export default function ParametresSeuils() {
   return (
     <Layout titre="Configuration des seuils d'alerte" sousTitre='Cas d’utilisation : « Configurer les seuils d’alerte »'>
       <div style={styles.banniereRole}>
-        🔒 Page réservée au rôle Administrateur — invisible pour le Responsable CAEPA
+        Page réservée au rôle Administrateur — invisible pour le Responsable CAEPA
       </div>
 
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}

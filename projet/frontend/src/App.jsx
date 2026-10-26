@@ -2,6 +2,7 @@ import './index.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { SiteProvider } from './sites/SiteContext';
+import { ConfirmProvider } from './confirm/ConfirmContext';
 import RouteProtegee from './components/RouteProtegee';
 
 import Connexion from './pages/Connexion';
@@ -15,6 +16,7 @@ export default function App() {
   return (
     <AuthProvider>
       <SiteProvider>
+        <ConfirmProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/connexion" element={<Connexion />} />
@@ -31,6 +33,7 @@ export default function App() {
             />
           </Routes>
         </BrowserRouter>
+        </ConfirmProvider>
       </SiteProvider>
     </AuthProvider>
   );

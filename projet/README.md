@@ -12,7 +12,7 @@ projet/
 └── frontend/           Tableau de bord React (Dockerfile inclus)
 ```
 
-Ce guide t'explique comment tout faire tourner **d'abord sur ton ordinateur** (pour
+Ce guide explique comment tout faire tourner **d'abord sur un ordinateur** (pour
 tester sans matériel), puis comment déployer le client sur le **vrai Raspberry Pi**.
 
 ## Fonctionnalités de l'interface web
@@ -31,8 +31,8 @@ tester sans matériel), puis comment déployer le client sur le **vrai Raspberry
 
 ## Option A — Avec Docker (le plus simple)
 
-Si tu as [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé,
-tu n'as **rien d'autre à installer** — pas de Node.js, pas de MongoDB, pas de Python
+Si tu le [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé,
+donc **rien d'autre à installer** — pas de Node.js, pas de MongoDB, pas de Python
 pour le backend/frontend. Docker s'occupe de tout, y compris la base de données.
 
 ```bash

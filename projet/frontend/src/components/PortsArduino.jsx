@@ -49,8 +49,8 @@ export default function PortsArduino({ seuils }) {
       )}
 
       <p style={styles.note}>
-        16 broches analogiques disponibles sur l'Arduino Mega — aucun convertisseur ADC externe requis.
-        Les broches numériques (D0-D53) sont réservées aux capteurs 1-Wire comme le DS18B20.
+        16 broches analogiques disponibles.
+        54 Les broches numériques (D0-D53) sont réservées aux capteurs 1-Wire comme le DS18B20.
       </p>
     </div>
   );

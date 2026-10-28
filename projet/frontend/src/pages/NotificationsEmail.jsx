@@ -52,7 +52,7 @@ export default function NotificationsEmail() {
   return (
     <Layout titre="Alertes par email" sousTitre={siteActif ? `Destinataires pour « ${siteActif.nom} »` : ''}>
       <div style={styles.banniereRole}>
-        🔒 Page réservée au rôle Administrateur — chaque site a sa propre liste de destinataires
+        Page réservée au rôle Administrateur — chaque site a sa propre liste de destinataires
       </div>
 
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}

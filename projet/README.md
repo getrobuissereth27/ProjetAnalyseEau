@@ -100,7 +100,7 @@ docker compose down          # arrête tout
 docker compose down -v       # arrête tout ET efface les données MongoDB
 ```
 
-**⚠️ Point de transparence** : cette configuration Docker a été vérifiée pour sa
+**Point de transparence** : cette configuration Docker a été vérifiée pour sa
 cohérence (syntaxe YAML, ports et variables d'environnement, dépendances de l'image
 de production) mais pas exécutée de bout en bout dans mon environnement de
 préparation. Un premier test réel a d'ailleurs révélé que les numéros de port donnés

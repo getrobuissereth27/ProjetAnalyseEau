@@ -52,7 +52,7 @@ Ce script crée aussi 2 comptes de démonstration pour te connecter au tableau d
 | Email | Mot de passe | Rôle |
 |---|---|---|
 | `caepa@demo.local` | `motdepasse123` | Responsable CAEPA |
-| `admin@demo.local` | `motdepasse123` | Administrateur (accès à "Paramètres") |
+| `genio.admin@demo.local` | `motdepasse123` | Administrateur (accès à "Paramètres") |
 
 C'est tout. Ouvre ensuite :
 - Le tableau de bord : http://localhost:5174 (tu seras redirigé vers la page de connexion)

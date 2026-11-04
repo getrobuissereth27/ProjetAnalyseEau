@@ -1,15 +1,15 @@
-// Génère un historique de mesures simulées, réparties sur plusieurs jours, pour
-// pouvoir visualiser immédiatement les graphiques, le tableau d'historique et
+﻿// GÃ©nÃ¨re un historique de mesures simulÃ©es, rÃ©parties sur plusieurs jours, pour
+// pouvoir visualiser immÃ©diatement les graphiques, le tableau d'historique et
 // les alertes sans attendre que le client Raspberry Pi (ou son mode simulation)
 // tourne pendant des heures.
 //
-// Prérequis : avoir déjà lancé `npm run seed` au moins une fois (les sites,
+// PrÃ©requis : avoir dÃ©jÃ  lancÃ© `npm run seed` au moins une fois (les sites,
 // capteurs et seuils doivent exister).
 //
 // Usage :
 //   npm run donnees:demo
 //   JOURS_HISTORIQUE=14 INTERVALLE_MINUTES=5 npm run donnees:demo
-//   REINITIALISER=true npm run donnees:demo   (efface l'historique existant avant de regénérer)
+//   REINITIALISER=true npm run donnees:demo   (efface l'historique existant avant de regÃ©nÃ©rer)
 
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -23,7 +23,7 @@ const JOURS_HISTORIQUE = Number(process.env.JOURS_HISTORIQUE || 7);
 const INTERVALLE_MINUTES = Number(process.env.INTERVALLE_MINUTES || 10);
 const REINITIALISER = process.env.REINITIALISER === 'true';
 
-// Plage "normale" par type de capteur — resserrée à l'intérieur du seuil pour
+// Plage "normale" par type de capteur â€” resserrÃ©e Ã  l'intÃ©rieur du seuil pour
 // que la plupart des points soient sains, avec de temps en temps un incident
 // (voir injecterIncidents) qui sort volontairement de cette plage.
 const PLAGES_NORMALES = {
@@ -33,7 +33,7 @@ const PLAGES_NORMALES = {
   temperature: { min: 22, max: 27, pas: 0.3 },
 };
 
-// Amplitude de l'excursion hors seuil pendant un incident simulé, par type.
+// Amplitude de l'excursion hors seuil pendant un incident simulÃ©, par type.
 const AMPLEUR_INCIDENT = {
   pH: 1.3,
   turbidite: 8,
@@ -45,8 +45,8 @@ function alea(min, max) {
   return min + Math.random() * (max - min);
 }
 
-// Marche aléatoire simple : chaque point dérive un peu du précédent plutôt que
-// d'être totalement indépendant, pour un rendu de courbe réaliste.
+// Marche alÃ©atoire simple : chaque point dÃ©rive un peu du prÃ©cÃ©dent plutÃ´t que
+// d'Ãªtre totalement indÃ©pendant, pour un rendu de courbe rÃ©aliste.
 function genererSerieBase(nbPoints, plage) {
   const serie = [];
   let valeur = alea(plage.min, plage.max);
@@ -58,9 +58,9 @@ function genererSerieBase(nbPoints, plage) {
   return serie;
 }
 
-// Insère, avec une faible probabilité, des épisodes de quelques points
-// consécutifs hors seuil — de quoi peupler la page Alertes avec un mélange
-// réaliste d'alertes résolues et (pour l'épisode le plus récent, parfois)
+// InsÃ¨re, avec une faible probabilitÃ©, des Ã©pisodes de quelques points
+// consÃ©cutifs hors seuil â€” de quoi peupler la page Alertes avec un mÃ©lange
+// rÃ©aliste d'alertes rÃ©solues et (pour l'Ã©pisode le plus rÃ©cent, parfois)
 // une alerte encore active.
 function injecterIncidents(serie, seuil, ampleur) {
   const PROBABILITE_INCIDENT_PAR_JOUR = 0.35;
@@ -68,7 +68,7 @@ function injecterIncidents(serie, seuil, ampleur) {
   const nbIncidents = Math.round(nbJours * PROBABILITE_INCIDENT_PAR_JOUR * Math.random());
 
   for (let i = 0; i < nbIncidents; i++) {
-    const duree = Math.round(alea(2, 6)); // nombre de points consécutifs hors seuil
+    const duree = Math.round(alea(2, 6)); // nombre de points consÃ©cutifs hors seuil
     const debut = Math.floor(alea(0, Math.max(1, serie.length - duree)));
     const auDessus = Math.random() > 0.5;
 
@@ -81,9 +81,9 @@ function injecterIncidents(serie, seuil, ampleur) {
   return serie;
 }
 
-// Reconstitue, après coup, les épisodes d'alerte à partir d'une série de
-// mesures déjà insérées (avec leur _id) — un épisode = une série de points
-// consécutifs hors seuil, comme le ferait le service d'analyse en temps réel.
+// Reconstitue, aprÃ¨s coup, les Ã©pisodes d'alerte Ã  partir d'une sÃ©rie de
+// mesures dÃ©jÃ  insÃ©rÃ©es (avec leur _id) â€” un Ã©pisode = une sÃ©rie de points
+// consÃ©cutifs hors seuil, comme le ferait le service d'analyse en temps rÃ©el.
 function detecterEpisodes(mesuresInserees, seuil) {
   const episodes = [];
   let episodeEnCours = null;
@@ -98,8 +98,8 @@ function detecterEpisodes(mesuresInserees, seuil) {
     }
   });
 
-  // Si la série se termine en plein incident, l'alerte reste active — c'est
-  // exactement ce que ferait le système en conditions réelles.
+  // Si la sÃ©rie se termine en plein incident, l'alerte reste active â€” c'est
+  // exactement ce que ferait le systÃ¨me en conditions rÃ©elles.
   if (episodeEnCours) {
     episodes.push({ ...episodeEnCours, statut: 'active', dateResolution: null });
   }
@@ -123,7 +123,7 @@ async function genererPourCapteur(capteur, seuil, maintenant) {
 
   const inserees = await Mesure.insertMany(documents);
 
-  // Heartbeat à jour : le dernier point simulé correspond à "maintenant"
+  // Heartbeat Ã  jour : le dernier point simulÃ© correspond Ã  "maintenant"
   await Capteur.findByIdAndUpdate(capteur._id, { dernierBattement: inserees[inserees.length - 1].horodatage });
 
   if (seuil) {
@@ -138,26 +138,26 @@ async function genererPourCapteur(capteur, seuil, maintenant) {
 
 async function run() {
   await mongoose.connect(process.env.MONGODB_URI);
-  console.log('Connecté à MongoDB.');
+  console.log('ConnectÃ© Ã  MongoDB.');
 
   const sites = await Site.find();
   if (sites.length === 0) {
-    console.log("Aucun site trouvé — lance d'abord `npm run seed`.");
+    console.log("Aucun site trouvÃ© â€” lance d'abord `npm run seed`.");
     await mongoose.disconnect();
     return;
   }
 
   const maintenant = new Date();
-  console.log(`Génération de ${JOURS_HISTORIQUE} jour(s) d'historique, un point toutes les ${INTERVALLE_MINUTES} min...\n`);
+  console.log(`GÃ©nÃ©ration de ${JOURS_HISTORIQUE} jour(s) d'historique, un point toutes les ${INTERVALLE_MINUTES} min...\n`);
 
   for (const site of sites) {
-    const capteurs = await Capteur.find({ site_id: site._id, actif: true });
+    const capteurs = await Capteur.find({ site_id: site._id, actif: { $ne: false } });
     if (capteurs.length === 0) {
-      console.log(`= ${site.nom} : aucun capteur actif, ignoré.`);
+      console.log(`= ${site.nom} : aucun capteur actif, ignorÃ©.`);
       continue;
     }
 
-    console.log(`▸ ${site.nom}`);
+    console.log(`â–¸ ${site.nom}`);
     for (const capteur of capteurs) {
       const seuil = await Seuil.findOne({ capteur_id: capteur._id });
 
@@ -169,15 +169,16 @@ async function run() {
       }
 
       const { nbMesures, nbAlertes } = await genererPourCapteur(capteur, seuil, maintenant);
-      console.log(`  + ${capteur.type} : ${nbMesures} mesures, ${nbAlertes} alerte(s) générée(s)`);
+      console.log(`  + ${capteur.type} : ${nbMesures} mesures, ${nbAlertes} alerte(s) gÃ©nÃ©rÃ©e(s)`);
     }
   }
 
-  console.log('\nTerminé — rafraîchis le tableau de bord pour voir les données.');
+  console.log('\nTerminÃ© â€” rafraÃ®chis le tableau de bord pour voir les donnÃ©es.');
   await mongoose.disconnect();
 }
 
 run().catch((err) => {
-  console.error('Erreur pendant la génération :', err);
+  console.error('Erreur pendant la gÃ©nÃ©ration :', err);
   process.exit(1);
 });
+

@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "seed": "node scripts/seed.js",
     "donnees:demo": "node scripts/generer-donnees-demo.js",
+    "simuler": "node scripts/simulateur-temps-reel.js",
     "test": "jest --runInBand"
   },
   "dependencies": {

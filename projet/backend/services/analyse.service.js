@@ -72,7 +72,9 @@ async function resoudreAlertesActives(capteurId) {
 // Envoie un email à tous les destinataires actifs du site concerné — silencieux
 // s'il n'y en a aucun (voir la page "Destinataires des alertes par email").
 async function notifierParEmail(capteur, mesure, seuil) {
-  const destinataires = await Destinataire.find({ site_id: capteur.site_id, actif: true }).select('email');
+  // $ne: false plutôt que true : les destinataires créés avant l'ajout du champ
+  // "actif" ne l'ont pas en base, et doivent être considérés actifs (défaut du schéma).
+  const destinataires = await Destinataire.find({ site_id: capteur.site_id, actif: { $ne: false } }).select('email');
   if (destinataires.length === 0) return;
 
   const site = await Site.findById(capteur.site_id).select('nom');

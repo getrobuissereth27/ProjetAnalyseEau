@@ -111,7 +111,7 @@ test("envoie un email aux destinataires actifs du site quand une nouvelle alerte
   Mesure.find.mockReturnValue({ select: jest.fn().mockResolvedValue([]) });
   Alerte.find.mockResolvedValue([]);
   Alerte.create.mockResolvedValue({ _id: 'a1' });
-  mockDestinataires([{ email: 'admin@demo.local' }, { email: 'caepa@demo.local' }]);
+  mockDestinataires([{ email: 'genio.admin@demo.local' }, { email: 'caepa@demo.local' }]);
   Site.findById.mockReturnValue({ select: jest.fn().mockResolvedValue({ nom: 'Site de test' }) });
 
   const mesure = { _id: 'm7', capteur_id: '1', valeur: 9.2 };
@@ -123,7 +123,7 @@ test("envoie un email aux destinataires actifs du site quand une nouvelle alerte
 
   expect(envoyerAlerteEmail).toHaveBeenCalledWith(
     expect.objectContaining({
-      destinataires: ['admin@demo.local', 'caepa@demo.local'],
+      destinataires: ['genio.admin@demo.local', 'caepa@demo.local'],
       type: 'pH',
     })
   );

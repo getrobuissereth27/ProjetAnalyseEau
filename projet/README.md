@@ -58,9 +58,20 @@ C'est tout. Ouvre ensuite :
 - Le tableau de bord : http://localhost:5174 (tu seras redirigé vers la page de connexion)
 - L'API : http://localhost:3002/api/health (doit répondre `{"statut":"ok"}`)
 
-Le client Raspberry Pi (Python), lui, **reste hors de Docker** — il est fait pour
-tourner directement sur le Raspberry Pi ou sur ton ordinateur en simulation (voir
-section 2 plus bas). Lance-le normalement :
+**Simulation automatique :** `docker compose up` démarre aussi le conteneur
+`simulateur`, qui envoie des mesures aléatoires réalistes toutes les 10 s — le
+tableau de bord évolue donc tout seul, sans rien installer. Pour suivre ce qu'il
+envoie : `docker compose logs -f simulateur`. Quand le vrai Raspberry Pi est
+branché, arrête-le pour ne pas mélanger mesures simulées et réelles :
+`docker compose stop simulateur`.
+
+**Emails d'alerte simulés :** les emails envoyés aux destinataires (page
+Paramètres) sont capturés par **Mailpit**, une fausse boîte mail — rien ne part
+réellement. Consulte-les sur http://localhost:8025.
+
+Le client Raspberry Pi (Python) peut aussi tourner **hors de Docker** — directement
+sur le Raspberry Pi, ou sur ton ordinateur en simulation (voir section 2 plus bas).
+Dans ce cas, arrête d'abord le conteneur `simulateur`, puis lance-le normalement :
 
 ```bash
 cd raspberry-client
@@ -99,6 +110,35 @@ Pour arrêter les conteneurs :
 docker compose down          # arrête tout
 docker compose down -v       # arrête tout ET efface les données MongoDB
 ```
+
+### Supprimer les images Docker et les reconstruire
+
+Lance ces commandes depuis le dossier `projet/`.
+
+**En gardant les données** (comptes, mesures, alertes) :
+
+```bash
+docker compose down --rmi local   # arrête les conteneurs et supprime les images backend et frontend
+docker compose build --no-cache   # reconstruit les images sans réutiliser le cache
+docker compose up -d              # redémarre tout en arrière-plan
+```
+
+L'image `mongo:7` est conservée, elle n'a donc pas besoin d'être retéléchargée.
+
+**En repartant de zéro** — ⚠️ `-v` efface définitivement toutes les données MongoDB :
+
+```bash
+docker compose down --rmi local -v
+docker compose build --no-cache
+docker compose up -d
+docker compose exec backend npm run seed   # recrée le site, les capteurs et les comptes de démonstration
+```
+
+Les capteurs recréés par le seed ont de nouveaux identifiants. Avant de relancer le client
+Raspberry Pi, arrête-le et supprime `raspberry-client/mesures_en_attente.jsonl` si ce fichier existe.
+
+Évite `docker system prune` pour ce nettoyage : cette commande concerne tous les projets
+Docker de la machine, pas seulement celui-ci.
 
 **Point de transparence** : cette configuration Docker a été vérifiée pour sa
 cohérence (syntaxe YAML, ports et variables d'environnement, dépendances de l'image

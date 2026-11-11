@@ -45,7 +45,7 @@ export default function Connexion() {
 
         <p style={styles.aide}>
           Comptes de démonstration (créés par <code>npm run seed</code>) :<br />
-          <code>caepa@demo.local</code> (responsable) ou <code>admin@demo.local</code> (admin)<br />
+          <code>caepa@demo.local</code> (responsable) ou <code>genio.admin@demo.local</code> (admin)<br />
           mot de passe : <code>motdepasse123</code>
         </p>
       </form>

@@ -20,8 +20,21 @@ services:
       PORT: 3000
       CORS_ORIGIN: http://localhost:5174
       NODE_ENV: production
+      # Emails d'alerte capturés par Mailpit (voir ci-dessous) : rien n'est
+      # réellement envoyé, tout est consultable sur http://localhost:8025
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
     ports:
       - "3002:3000"
+
+  # Fausse boîte mail de test : reçoit tous les emails d'alerte et les affiche
+  # dans une interface web (http://localhost:8025), sans jamais les envoyer.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: eau-mailpit-v2
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
 
   frontend:
     build:
@@ -36,6 +49,20 @@ services:
       - backend
     ports:
       - "5174:80"
+
+  # Client Raspberry Pi en mode simulation : envoie des mesures aléatoires
+  # réalistes toutes les 10 s, pour voir le tableau de bord évoluer sans matériel.
+  # Avec le vrai Raspberry Pi branché, arrête-le : docker compose stop simulateur
+  simulateur:
+    build: ./raspberry-client
+    container_name: eau-simulateur-v2
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Réseau interne Docker : nom du service + port interne (pas 3002)
+      API_URL: http://backend:3000
+      INTERVALLE_SECONDES: 10
 
 volumes:
   mongo_data:

@@ -1,10 +1,11 @@
 import os
 
-# URL de l'API. Pour tester sur ton ordinateur avec le backend lancé en local :
-#   API_URL = "http://localhost:3000"
+# URL de l'API. Par défaut : le backend lancé avec Docker (port publié 3002,
+# voir docker-compose.yml). Sans Docker (npm run dev), l'API écoute sur 3000 :
+#   API_URL=http://localhost:3000 python3 main.py
 # Une fois déployé (chapitre déploiement) :
-#   API_URL = "https://api-projet-eau.onrender.com"
-API_URL = os.environ.get("API_URL", "http://localhost:3000")
+#   API_URL=https://api-projet-eau.onrender.com
+API_URL = os.environ.get("API_URL", "http://localhost:3002")
 
 TIMEOUT_SECONDES = 5
 INTERVALLE_SECONDES = int(os.environ.get("INTERVALLE_SECONDES", "10"))

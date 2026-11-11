@@ -21,7 +21,7 @@ const CAPTEURS = [
 
 const UTILISATEURS = [
   { nom: 'Jean Registre', email: 'caepa@demo.local', motDePasse: 'motdepasse123', role: 'communautaire' },
-  { nom: 'Admin Démo', email: 'admin@demo.local', motDePasse: 'motdepasse123', role: 'administrateur' },
+  { nom: 'Admin Démo', email: 'genio.admin@demo.local', motDePasse: 'motdepasse123', role: 'administrateur' },
 ];
 
 async function run() {

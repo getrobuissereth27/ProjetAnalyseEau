@@ -8,20 +8,22 @@ from vanne import appliquer_etat_vanne, nettoyer
 from config import INTERVALLE_SECONDES, CAPTEURS_ID, API_URL
 
 
-def completer_capteurs_id():
+def completer_capteurs_id(ids_connus=None):
     """
     Si config.py n'a pas les vrais identifiants MongoDB, on les récupère
     automatiquement depuis l'API (pratique pour tester rapidement après
     un 'npm run seed' côté backend, sans copier-coller les ObjectId à la main).
     """
-    if all(CAPTEURS_ID.values()):
-        return CAPTEURS_ID
+    ids = dict(ids_connus or CAPTEURS_ID)
+    if all(ids.values()):
+        return ids
 
     print("→ Récupération automatique des identifiants de capteurs depuis l'API...")
     capteurs_api = recuperer_capteurs()
+    if not capteurs_api:
+        return ids
     correspondance = {'temperature': 'temperature', 'ph': 'pH', 'turbidite': 'turbidite', 'tds': 'tds'}
 
-    ids = dict(CAPTEURS_ID)
     for cle_locale, type_api in correspondance.items():
         if ids.get(cle_locale):
             continue
@@ -35,6 +37,13 @@ def completer_capteurs_id():
 
 
 def cycle_de_mesure(capteurs_id):
+    manquants = [cle for cle, valeur in capteurs_id.items() if not valeur]
+    if manquants:
+        # Sans identifiant, la mesure ne peut être rattachée à aucun capteur :
+        # on le signale clairement au lieu de l'ignorer en silence.
+        print(f"  ⚠ Identifiant inconnu pour : {', '.join(manquants)} — "
+              f"API joignable sur {API_URL} ? (Docker : port 3002, npm run dev : port 3000)")
+
     mesures = lire_toutes_les_mesures()
     lectures = {
         capteurs_id.get('temperature'): mesures['temperature'],
@@ -74,6 +83,9 @@ if __name__ == '__main__':
         while True:
             print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Cycle de mesure")
             rejouer_mesures_en_attente(envoyer_mesure)
+            if not all(capteurs_id.values()):
+                # L'API n'était peut-être pas encore prête au démarrage : on retente.
+                capteurs_id = completer_capteurs_id(capteurs_id)
             cycle_de_mesure(capteurs_id)
             mettre_a_jour_la_vanne()
             time.sleep(INTERVALLE_SECONDES)

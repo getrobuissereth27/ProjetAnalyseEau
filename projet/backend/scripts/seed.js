@@ -12,16 +12,20 @@ const Utilisateur = require('../models/utilisateur.model');
 
 const NOM_SITE_DEFAUT = 'Source communautaire — Site 1';
 
+// seuil : plage normale (alerte sans email) ; critique : au-delà → email
 const CAPTEURS = [
-  { type: 'temperature', modele: 'DS18B20', unite: '°C', broche: 'D2', seuil: [15, 30] },
-  { type: 'pH', modele: 'DFRobot Pro V2', unite: 'pH', broche: 'A2', seuil: [6.5, 8.5] },
-  { type: 'turbidite', modele: 'DFRobot SEN0189', unite: 'NTU', broche: 'A0', seuil: [0, 5] },
-  { type: 'tds', modele: 'Capteur TDS générique', unite: 'ppm', broche: 'A1', seuil: [50, 400] },
+  { type: 'temperature', modele: 'DS18B20', unite: '°C', broche: 'D2', seuil: [15, 30], critique: [10, 35] },
+  { type: 'pH', modele: 'DFRobot Pro V2', unite: 'pH', broche: 'A2', seuil: [6.5, 8.5], critique: [6, 9] },
+  { type: 'turbidite', modele: 'DFRobot SEN0189', unite: 'NTU', broche: 'A0', seuil: [0, 5], critique: [null, 10] },
+  { type: 'tds', modele: 'Capteur TDS générique', unite: 'ppm', broche: 'A1', seuil: [50, 400], critique: [20, 600] },
 ];
 
+// Le superadmin n'est rattaché à aucun site (il les voit tous) ; les autres
+// comptes de démonstration sont rattachés au site par défaut.
 const UTILISATEURS = [
-  { nom: 'Jean Registre', email: 'caepa@demo.local', motDePasse: 'motdepasse123', role: 'communautaire' },
+  { nom: 'Super Admin', email: 'super.admin@demo.local', motDePasse: 'motdepasse123', role: 'superadmin' },
   { nom: 'Admin Démo', email: 'genio.admin@demo.local', motDePasse: 'motdepasse123', role: 'administrateur' },
+  { nom: 'Jean Registre', email: 'caepa@demo.local', motDePasse: 'motdepasse123', role: 'communautaire' },
 ];
 
 async function run() {
@@ -49,8 +53,14 @@ async function run() {
 
     const seuilExistant = await Seuil.findOne({ capteur_id: capteur._id });
     if (!seuilExistant) {
-      await Seuil.create({ capteur_id: capteur._id, valeur_min: c.seuil[0], valeur_max: c.seuil[1] });
-      console.log(`  + Seuil créé : [${c.seuil[0]}, ${c.seuil[1]}]`);
+      await Seuil.create({
+        capteur_id: capteur._id,
+        valeur_min: c.seuil[0],
+        valeur_max: c.seuil[1],
+        critique_min: c.critique[0],
+        critique_max: c.critique[1],
+      });
+      console.log(`  + Seuil créé : [${c.seuil[0]}, ${c.seuil[1]}], critique [${c.critique[0] ?? '—'}, ${c.critique[1] ?? '—'}]`);
     }
   }
 
@@ -58,13 +68,20 @@ async function run() {
 
   console.log('\nComptes de démonstration :');
   for (const u of UTILISATEURS) {
+    const sites = u.role === 'superadmin' ? [] : [site._id];
     const existant = await Utilisateur.findOne({ email: u.email });
     if (!existant) {
       const motDePasseHash = await bcrypt.hash(u.motDePasse, 10);
-      await Utilisateur.create({ nom: u.nom, email: u.email, motDePasseHash, role: u.role });
+      await Utilisateur.create({ nom: u.nom, email: u.email, motDePasseHash, role: u.role, sites });
       console.log(`+ Créé : ${u.email} / ${u.motDePasse} (${u.role})`);
     } else {
-      console.log(`= Déjà existant : ${u.email} (${u.role})`);
+      // Comptes créés avant l'ajout des sites : on les rattache au site par défaut.
+      if (u.role !== 'superadmin' && (!existant.sites || existant.sites.length === 0)) {
+        existant.sites = sites;
+        await existant.save();
+        console.log(`~ ${u.email} rattaché à « ${site.nom} »`);
+      }
+      console.log(`= Déjà existant : ${u.email} (${existant.role})`);
     }
   }
 

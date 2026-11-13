@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSite } from '../sites/SiteContext';
 import { useAuth } from '../auth/AuthContext';
+import { estSuperAdmin } from '../utils/roles';
 
 export default function SelecteurSite() {
   const { sites, siteActifId, setSiteActifId, ajouterSite, chargement } = useSite();
@@ -47,10 +48,10 @@ export default function SelecteurSite() {
           ))}
         </select>
       ) : (
-        <p style={styles.aucunSite}>Aucun site pour l'instant</p>
+        <p style={styles.aucunSite}>{estSuperAdmin(utilisateur) ? "Aucun site pour l'instant" : 'Aucun site attribué'}</p>
       )}
 
-      {utilisateur?.role === 'administrateur' && (
+      {estSuperAdmin(utilisateur) && (
         <button style={styles.boutonAjouter} onClick={() => setModalOuvert(true)}>
           + Ajouter un site
         </button>

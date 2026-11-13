@@ -1,9 +1,11 @@
 const mongoose = require('mongoose');
 
-// Au-delà de ce délai sans nouvelle mesure reçue, un capteur actif est considéré
-// défectueux plutôt que simplement "en retard" — configurable via variable
-// d'environnement si l'intervalle d'envoi du Raspberry Pi diffère du défaut (10s).
-const SEUIL_HEARTBEAT_MS = Number(process.env.SEUIL_HEARTBEAT_MS) || 5 * 60 * 1000; // 5 minutes
+// Délai par défaut (en secondes) sans nouvelle mesure au-delà duquel un capteur
+// actif est déclaré défectueux. Chaque capteur peut avoir son propre délai,
+// configuré par l'administrateur (page Paramètres) — voir delaiDefaillanceSecondes.
+const DELAI_DEFAILLANCE_DEFAUT_S = Number(process.env.DELAI_DEFAILLANCE_DEFAUT_S)
+  || Math.round((Number(process.env.SEUIL_HEARTBEAT_MS) || 5 * 60 * 1000) / 1000); // 5 minutes
+const DELAI_DEFAILLANCE_MIN_S = 10;
 
 const capteurSchema = new mongoose.Schema({
   site_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Site', required: true },
@@ -13,18 +15,29 @@ const capteurSchema = new mongoose.Schema({
   actif: { type: Boolean, default: true },
   broche: { type: String, trim: true, default: '' }, // ex: "A0", "A1", "D2" — broche Arduino occupée (informatif)
   dernierBattement: { type: Date, default: null },          // mis à jour à chaque mesure reçue (voir mesures.controller.js)
+  delaiDefaillanceSecondes: {
+    type: Number,
+    default: DELAI_DEFAILLANCE_DEFAUT_S,
+    min: DELAI_DEFAILLANCE_MIN_S,
+  },
 }, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
+
+capteurSchema.methods.delaiDefaillanceMs = function () {
+  return (this.delaiDefaillanceSecondes || DELAI_DEFAILLANCE_DEFAUT_S) * 1000;
+};
 
 // Statut dérivé du heartbeat — jamais stocké, toujours recalculé à la lecture :
 // 'desactive'  : le capteur a été désactivé manuellement (voir capteurs.controller.js)
 // 'inconnu'    : aucune mesure jamais reçue pour ce capteur
-// 'fonctionne' : une mesure a été reçue il y a moins de SEUIL_HEARTBEAT_MS
-// 'defectueux' : plus aucune mesure reçue depuis plus de SEUIL_HEARTBEAT_MS
+// 'fonctionne' : une mesure a été reçue il y a moins de delaiDefaillanceSecondes
+// 'defectueux' : plus aucune mesure reçue depuis plus de delaiDefaillanceSecondes
 capteurSchema.virtual('statut').get(function () {
   if (!this.actif) return 'desactive';
   if (!this.dernierBattement) return 'inconnu';
   const ecouleMs = Date.now() - new Date(this.dernierBattement).getTime();
-  return ecouleMs <= SEUIL_HEARTBEAT_MS ? 'fonctionne' : 'defectueux';
+  return ecouleMs <= this.delaiDefaillanceMs() ? 'fonctionne' : 'defectueux';
 });
 
 module.exports = mongoose.model('Capteur', capteurSchema);
+module.exports.DELAI_DEFAILLANCE_DEFAUT_S = DELAI_DEFAILLANCE_DEFAUT_S;
+module.exports.DELAI_DEFAILLANCE_MIN_S = DELAI_DEFAILLANCE_MIN_S;

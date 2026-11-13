@@ -17,26 +17,46 @@ function ilYA(horodatage) {
   return `il y a ${jours} j`;
 }
 
-export default function CarteCapteur({ type, valeur, unite, enAlerte, statut, horodatage }) {
+// Plage lisible : « 6.5 – 8.5 », « ≤ 10 », « ≥ 6 »
+function formaterPlage(min, max) {
+  const aMin = min !== null && min !== undefined;
+  const aMax = max !== null && max !== undefined;
+  if (aMin && aMax) return `${min} – ${max}`;
+  if (aMax) return `≤ ${max}`;
+  if (aMin) return `≥ ${min}`;
+  return null;
+}
+
+// niveauAlerte : null | 'avertissement' | 'critique' (alerte de seuil active)
+export default function CarteCapteur({ type, valeur, unite, niveauAlerte, statut, horodatage, seuil }) {
   const infoStatut = STATUT_INFO[statut];
   // On ne peut affirmer "Normal" ou "Hors seuil" que si le capteur répond
   // actuellement (heartbeat "fonctionne") — sinon la valeur affichée n'est
   // qu'un dernier relevé connu, potentiellement périmé depuis longtemps.
   const estFiable = statut === 'fonctionne';
+  const estCritique = niveauAlerte === 'critique';
+  const couleurBarre = !estFiable ? '#94A3B8' : (estCritique ? '#B91C1C' : (niveauAlerte ? '#B45309' : '#15803D'));
+
+  const plageNormale = seuil ? formaterPlage(seuil.valeur_min, seuil.valeur_max) : null;
+  const plageCritique = seuil ? formaterPlage(seuil.critique_min, seuil.critique_max) : null;
 
   return (
     <div className="carte">
-      <div className="bar" style={{ background: !estFiable ? '#94A3B8' : (enAlerte ? '#B45309' : '#15803D') }} />
+      <div className="bar" style={{ background: couleurBarre }} />
       <p className="label">{LABELS[type] || type}</p>
       <p className="value" style={!estFiable ? { opacity: 0.5 } : undefined}>
         {valeur ?? '—'} <span className="unit">{unite}</span>
       </p>
 
       {estFiable ? (
-        <span className={`badge ${enAlerte ? 'alerte' : 'ok'}`}>
-          <span className="badge-dot" />
-          {enAlerte ? 'Hors seuil' : 'Normal'}
-        </span>
+        estCritique ? (
+          <span style={{ ...styles.puceStatut, color: '#B91C1C', background: '#FEE2E2' }}>Seuil critique</span>
+        ) : (
+          <span className={`badge ${niveauAlerte ? 'alerte' : 'ok'}`}>
+            <span className="badge-dot" />
+            {niveauAlerte ? 'Hors seuil' : 'Normal'}
+          </span>
+        )
       ) : (
         infoStatut && (
           <span style={{ ...styles.puceStatut, color: infoStatut.couleur, background: infoStatut.fond }}>
@@ -46,13 +66,25 @@ export default function CarteCapteur({ type, valeur, unite, enAlerte, statut, ho
       )}
 
       {!estFiable && horodatage && (
-        <p style={styles.derniereDonnee}>Dernière donnée reçue {ilYA(horodatage)}</p>
+        <p style={styles.petitTexte}>Dernière donnée reçue {ilYA(horodatage)}</p>
       )}
+
+      <div style={styles.seuils}>
+        {plageNormale ? (
+          <>
+            <p style={styles.petitTexte}>Seuil : {plageNormale} {unite}</p>
+            {plageCritique && <p style={styles.petitTexte}>Critique : {plageCritique} {unite}</p>}
+          </>
+        ) : (
+          <p style={styles.petitTexte}>Aucun seuil configuré</p>
+        )}
+      </div>
     </div>
   );
 }
 
 const styles = {
   puceStatut: { display: 'inline-block', marginTop: 8, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999 },
-  derniereDonnee: { fontSize: 10.5, color: '#94A3B8', marginTop: 6 },
+  petitTexte: { fontSize: 10.5, color: '#94A3B8', marginTop: 4, lineHeight: 1.35 },
+  seuils: { marginTop: 6 },
 };

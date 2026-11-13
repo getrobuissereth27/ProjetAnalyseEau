@@ -1,27 +1,91 @@
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 const Utilisateur = require('../models/utilisateur.model');
+const Site = require('../models/site.model');
+const { estSuperAdmin } = require('../middleware/auth.middleware');
 
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// GET /api/users   (administrateur uniquement)
+// Règles de gestion des comptes :
+// - le superadmin gère tous les comptes, tous les rôles et tous les sites ;
+// - un administrateur ne gère que les responsables (rôle communautaire) rattachés
+//   à au moins un de SES sites, et ne peut leur attribuer que ses propres sites.
+
+function idsSites(liste) {
+  return (liste || []).map((s) => (s._id || s).toString());
+}
+
+// Un administrateur peut-il gérer ce compte ?
+function peutGerer(moi, cible) {
+  if (estSuperAdmin(moi)) return true;
+  if (cible.role !== 'communautaire') return false;
+  return idsSites(cible.sites).some((s) => moi.sites.includes(s));
+}
+
+// Ce que l'appelant a le droit de voir d'un compte : un administrateur ne voit
+// que les sites qu'il partage avec ce compte.
+function vueUtilisateur(moi, u) {
+  const obj = u.toObject ? u.toObject() : { ...u };
+  delete obj.motDePasseHash;
+  if (!estSuperAdmin(moi)) obj.sites = idsSites(obj.sites).filter((s) => moi.sites.includes(s));
+  else obj.sites = idsSites(obj.sites);
+  return obj;
+}
+
+// Valide une liste d'identifiants de sites : format, existence, et droits de l'appelant.
+async function validerSites(moi, sites) {
+  if (!Array.isArray(sites)) return { erreur: 'sites doit être un tableau' };
+  const ids = [...new Set(sites.map(String))];
+  if (ids.some((id) => !mongoose.isValidObjectId(id))) return { erreur: 'Identifiant de site invalide' };
+  if (!estSuperAdmin(moi) && ids.some((id) => !moi.sites.includes(id))) {
+    return { erreur: "Tu ne peux attribuer que des sites dont tu es administrateur", statut: 403 };
+  }
+  const nbExistants = await Site.countDocuments({ _id: { $in: ids } });
+  if (nbExistants !== ids.length) return { erreur: 'Site introuvable' };
+  return { ids };
+}
+
+// GET /api/users   (administrateur ou superadmin)
 exports.listerUtilisateurs = async (req, res) => {
   try {
-    const utilisateurs = await Utilisateur.find().select('-motDePasseHash').sort({ createdAt: 1 });
-    res.json(utilisateurs);
+    const moi = req.utilisateur;
+    const filtre = estSuperAdmin(moi)
+      ? {}
+      // L'administrateur voit les comptes rattachés à ses sites (y compris les
+      // autres administrateurs de ces sites, en lecture seule) et lui-même.
+      : { $or: [{ sites: { $in: moi.sites } }, { _id: moi.id }] };
+    const utilisateurs = await Utilisateur.find(filtre).sort({ createdAt: 1 });
+    res.json(utilisateurs.map((u) => vueUtilisateur(moi, u)));
   } catch (err) {
     res.status(500).json({ erreur: err.message });
   }
 };
 
-// POST /api/users   (administrateur uniquement)
+// POST /api/users   body: { nom, email, motDePasse, role?, sites? }
 exports.creerUtilisateur = async (req, res) => {
   try {
-    const { nom, email, motDePasse, role } = req.body;
+    const moi = req.utilisateur;
+    const { nom, email, motDePasse, role = 'communautaire', sites = [] } = req.body;
     if (!nom || !email || !motDePasse) {
       return res.status(400).json({ erreur: 'nom, email et motDePasse sont requis' });
     }
+    if (!REGEX_EMAIL.test(email)) {
+      return res.status(400).json({ erreur: 'Adresse email invalide' });
+    }
     if (motDePasse.length < 8) {
       return res.status(400).json({ erreur: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+    if (!Utilisateur.ROLES.includes(role)) {
+      return res.status(400).json({ erreur: 'Rôle invalide' });
+    }
+    if (!estSuperAdmin(moi) && role !== 'communautaire') {
+      return res.status(403).json({ erreur: 'Seul le superadmin peut créer un administrateur' });
+    }
+
+    const verif = await validerSites(moi, sites);
+    if (verif.erreur) return res.status(verif.statut || 400).json({ erreur: verif.erreur });
+    if (role !== 'superadmin' && verif.ids.length === 0) {
+      return res.status(400).json({ erreur: 'Attribue au moins un site à ce compte' });
     }
 
     const existant = await Utilisateur.findOne({ email: email.toLowerCase() });
@@ -34,10 +98,44 @@ exports.creerUtilisateur = async (req, res) => {
       nom,
       email: email.toLowerCase(),
       motDePasseHash,
-      role: role === 'administrateur' ? 'administrateur' : 'communautaire',
+      role,
+      sites: role === 'superadmin' ? [] : verif.ids,
     });
 
-    res.status(201).json({ id: utilisateur._id, nom: utilisateur.nom, email: utilisateur.email, role: utilisateur.role });
+    res.status(201).json(vueUtilisateur(moi, utilisateur));
+  } catch (err) {
+    res.status(500).json({ erreur: err.message });
+  }
+};
+
+// PATCH /api/users/:id/sites   body: { sites: [...] }
+// Superadmin : remplace la liste complète. Administrateur : ne modifie que la
+// partie de la liste qui concerne ses propres sites (les autres sont conservés).
+exports.attribuerSites = async (req, res) => {
+  try {
+    const moi = req.utilisateur;
+    const cible = await Utilisateur.findById(req.params.id);
+    if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
+    if (!peutGerer(moi, cible)) return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
+    if (cible.role === 'superadmin') {
+      return res.status(400).json({ erreur: 'Le superadmin a déjà accès à tous les sites' });
+    }
+
+    const verif = await validerSites(moi, req.body.sites);
+    if (verif.erreur) return res.status(verif.statut || 400).json({ erreur: verif.erreur });
+
+    let nouveaux = verif.ids;
+    if (!estSuperAdmin(moi)) {
+      const horsPerimetre = idsSites(cible.sites).filter((s) => !moi.sites.includes(s));
+      nouveaux = [...horsPerimetre, ...verif.ids];
+    }
+    if (nouveaux.length === 0) {
+      return res.status(400).json({ erreur: 'Un compte doit appartenir à au moins un site' });
+    }
+
+    cible.sites = nouveaux;
+    await cible.save();
+    res.json(vueUtilisateur(moi, cible));
   } catch (err) {
     res.status(500).json({ erreur: err.message });
   }
@@ -93,55 +191,63 @@ exports.modifierMonProfil = async (req, res) => {
   }
 };
 
-// PATCH /api/users/:id   body: { nom?, email? }   (administrateur uniquement)
-// Corrige le nom ou l'email d'un compte existant — distinct de /role et /mot-de-passe.
+// PATCH /api/users/:id   body: { nom?, email? }
+// Corrige le nom ou l'email d'un compte existant — distinct de /role, /sites et /mot-de-passe.
 exports.modifierUtilisateur = async (req, res) => {
   try {
-    const { nom, email } = req.body;
-    const maj = {};
+    const moi = req.utilisateur;
+    const cible = await Utilisateur.findById(req.params.id);
+    if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
+    if (cible._id.toString() !== moi.id && !peutGerer(moi, cible)) {
+      return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
+    }
 
+    const { nom, email } = req.body;
     if (nom !== undefined) {
       if (!nom.trim()) return res.status(400).json({ erreur: 'Le nom ne peut pas être vide' });
-      maj.nom = nom.trim();
+      cible.nom = nom.trim();
     }
     if (email !== undefined) {
       if (!REGEX_EMAIL.test(email)) return res.status(400).json({ erreur: 'Adresse email invalide' });
       const existant = await Utilisateur.findOne({ email: email.toLowerCase(), _id: { $ne: req.params.id } });
       if (existant) return res.status(409).json({ erreur: 'Un compte existe déjà avec cet email' });
-      maj.email = email.toLowerCase();
+      cible.email = email.toLowerCase();
     }
 
-    const utilisateur = await Utilisateur.findByIdAndUpdate(req.params.id, maj, { new: true }).select('-motDePasseHash');
-    if (!utilisateur) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
-
-    res.json(utilisateur);
+    await cible.save();
+    res.json(vueUtilisateur(moi, cible));
   } catch (err) {
     res.status(500).json({ erreur: err.message });
   }
 };
 
-// PATCH /api/users/:id/role   body: { role }   (administrateur uniquement)
+// PATCH /api/users/:id/role   body: { role }   (superadmin uniquement)
 exports.changerRole = async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['administrateur', 'communautaire'].includes(role)) {
+    if (!Utilisateur.ROLES.includes(role)) {
       return res.status(400).json({ erreur: 'Rôle invalide' });
     }
-    // Empêche de se retirer soi-même le rôle admin par erreur (verrouillage accidentel de l'accès à cette page)
-    if (req.params.id === req.utilisateur.id && role !== 'administrateur') {
-      return res.status(400).json({ erreur: 'Tu ne peux pas retirer ton propre rôle administrateur' });
+    // Empêche de se retirer soi-même le rôle superadmin par erreur (perte de l'accès à la gestion des sites)
+    if (req.params.id === req.utilisateur.id && role !== 'superadmin') {
+      return res.status(400).json({ erreur: 'Tu ne peux pas retirer ton propre rôle superadmin' });
     }
 
-    const utilisateur = await Utilisateur.findByIdAndUpdate(req.params.id, { role }, { new: true }).select('-motDePasseHash');
-    if (!utilisateur) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
+    const cible = await Utilisateur.findById(req.params.id);
+    if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
+    if (role !== 'superadmin' && cible.role !== 'superadmin' && cible.sites.length === 0) {
+      return res.status(400).json({ erreur: "Attribue d'abord au moins un site à ce compte" });
+    }
 
-    res.json(utilisateur);
+    cible.role = role;
+    await cible.save();
+    res.json(vueUtilisateur(req.utilisateur, cible));
   } catch (err) {
     res.status(500).json({ erreur: err.message });
   }
 };
 
-// DELETE /api/users/:id   (administrateur uniquement)
+// DELETE /api/users/:id
 exports.supprimerUtilisateur = async (req, res) => {
   try {
     if (req.params.id === req.utilisateur.id) {
@@ -150,11 +256,14 @@ exports.supprimerUtilisateur = async (req, res) => {
 
     const cible = await Utilisateur.findById(req.params.id);
     if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
+    if (!peutGerer(req.utilisateur, cible)) {
+      return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
+    }
 
-    if (cible.role === 'administrateur') {
-      const nbAdmins = await Utilisateur.countDocuments({ role: 'administrateur' });
-      if (nbAdmins <= 1) {
-        return res.status(400).json({ erreur: 'Impossible de supprimer le dernier administrateur' });
+    if (cible.role === 'superadmin') {
+      const nb = await Utilisateur.countDocuments({ role: 'superadmin' });
+      if (nb <= 1) {
+        return res.status(400).json({ erreur: 'Impossible de supprimer le dernier superadmin' });
       }
     }
 

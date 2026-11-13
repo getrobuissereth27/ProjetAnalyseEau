@@ -17,18 +17,8 @@ if (process.env.SMTP_HOST) {
   console.log("ℹ SMTP non configuré (SMTP_HOST absent) : les emails d'alerte seront journalisés, pas envoyés.");
 }
 
-async function envoyerAlerteEmail({ destinataires, type, valeur, unite, seuil, siteNom }) {
+async function envoyer(destinataires, sujet, texte) {
   if (!destinataires || destinataires.length === 0) return;
-
-  const sujet = `⚠ Alerte qualité de l'eau — ${type} hors seuil (${siteNom})`;
-  const texte = [
-    `Le paramètre "${type}" a atteint ${valeur} ${unite}, en dehors de la plage autorisée`,
-    `[${seuil.valeur_min} - ${seuil.valeur_max}] ${unite}.`,
-    '',
-    `Site concerné : ${siteNom}`,
-    '',
-    'Connectez-vous au tableau de bord pour plus de détails.',
-  ].join('\n');
 
   if (!transporteur) {
     console.log(`[email simulé] À: ${destinataires.join(', ')} — ${sujet}`);
@@ -48,4 +38,50 @@ async function envoyerAlerteEmail({ destinataires, type, valeur, unite, seuil, s
   }
 }
 
-module.exports = { envoyerAlerteEmail };
+function plage(min, max, unite) {
+  const bas = min ?? '−∞';
+  const haut = max ?? '+∞';
+  return `[${bas} - ${haut}] ${unite}`;
+}
+
+// Seuil critique dépassé (voir services/analyse.service.js)
+async function envoyerAlerteEmail({ destinataires, type, valeur, unite, seuil, siteNom }) {
+  const sujet = `Alerte CRITIQUE qualité de l'eau — ${type} (${siteNom})`;
+  const critiqueMin = seuil.critique_min ?? seuil.valeur_min;
+  const critiqueMax = seuil.critique_max ?? seuil.valeur_max;
+  const texte = [
+    `Le paramètre "${type}" a atteint ${valeur} ${unite}, au-delà du seuil critique`,
+    `${plage(critiqueMin, critiqueMax, unite)}.`,
+    `(plage normale : ${plage(seuil.valeur_min, seuil.valeur_max, unite)})`,
+    '',
+    `Site concerné : ${siteNom}`,
+    '',
+    'Connectez-vous au tableau de bord pour plus de détails.',
+  ].join('\n');
+
+  await envoyer(destinataires, sujet, texte);
+}
+
+// Capteur qui ne répond plus (voir services/surveillance.service.js)
+async function envoyerAlerteCapteurDefaillant({ destinataires, type, modele, siteNom, dernierBattement, delaiSecondes }) {
+  const sujet = `⚠ Capteur défectueux — ${type} ne répond plus (${siteNom})`;
+  const texte = [
+    `Le capteur "${type}"${modele ? ` (${modele})` : ''} n'a envoyé aucune mesure depuis plus de ${formaterDuree(delaiSecondes)}.`,
+    `Dernière mesure reçue : ${dernierBattement ? new Date(dernierBattement).toLocaleString('fr-FR') : 'jamais'}.`,
+    '',
+    `Site concerné : ${siteNom}`,
+    '',
+    'Vérifiez l\'alimentation, le câblage du capteur et la connexion du Raspberry Pi.',
+  ].join('\n');
+
+  await envoyer(destinataires, sujet, texte);
+}
+
+function formaterDuree(secondes) {
+  if (secondes < 60) return `${secondes} s`;
+  const min = Math.floor(secondes / 60);
+  const s = secondes % 60;
+  return s ? `${min} min ${s} s` : `${min} min`;
+}
+
+module.exports = { envoyerAlerteEmail, envoyerAlerteCapteurDefaillant };

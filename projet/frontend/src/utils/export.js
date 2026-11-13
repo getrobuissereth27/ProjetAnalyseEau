@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { capteurDeLAlerte } from './roles';
 
 function telechargerBlob(blob, nomFichier) {
   const url = URL.createObjectURL(blob);
@@ -63,8 +64,8 @@ function ligneAlerteVersTableau(a) {
   return [
     new Date(a.horodatage).toLocaleString('fr-FR'),
     a.type_alerte,
-    a.mesure_id?.capteur_id?.type ?? '?',
-    a.mesure_id ? `${a.mesure_id.valeur} ${a.mesure_id.capteur_id?.unite ?? ''}`.trim() : '',
+    capteurDeLAlerte(a)?.type ?? '?',
+    a.mesure_id ? `${a.mesure_id.valeur} ${capteurDeLAlerte(a)?.unite ?? ''}`.trim() : '',
     a.statut === 'active' ? 'Active' : 'Résolue',
     a.dateResolution ? new Date(a.dateResolution).toLocaleString('fr-FR') : '',
   ];

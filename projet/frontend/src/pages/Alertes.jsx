@@ -5,12 +5,13 @@ import DetailAlerte from '../components/DetailAlerte';
 import { useSite } from '../sites/SiteContext';
 import { useAuth } from '../auth/AuthContext';
 import { useConfirmer } from '../confirm/ConfirmContext';
+import { estAdmin as aDroitsAdmin, capteurDeLAlerte } from '../utils/roles';
 import { exporterAlertesCSV, exporterAlertesExcel } from '../utils/export';
 
 export default function Alertes() {
   const { siteActifId } = useSite();
   const { utilisateur } = useAuth();
-  const estAdmin = utilisateur?.role === 'administrateur';
+  const estAdmin = aDroitsAdmin(utilisateur);
   const confirmer = useConfirmer();
   const [donnees, setDonnees] = useState({ resultats: [], total: 0, page: 1, totalPages: 1 });
   const [page, setPage] = useState(1);
@@ -173,7 +174,7 @@ export default function Alertes() {
             <div style={{ flex: 1 }}>
               <div className="alert-title">{a.type_alerte}</div>
               <div className="alert-meta">
-                {a.mesure_id?.capteur_id?.type ?? '?'} · {new Date(a.horodatage).toLocaleString('fr-FR')}
+                {capteurDeLAlerte(a)?.type ?? '?'}{a.niveau === 'critique' && a.statut === 'active' ? ' · critique' : ''} · {new Date(a.horodatage).toLocaleString('fr-FR')}
               </div>
             </div>
             <span className={`alert-status ${a.statut === 'active' ? 'active' : 'resolved'}`}>
@@ -219,7 +220,7 @@ export default function Alertes() {
       {alerteSelectionnee && (
         <DetailAlerte
           alerte={alerteSelectionnee}
-          seuil={seuilDuCapteur(alerteSelectionnee.mesure_id?.capteur_id?._id)}
+          seuil={seuilDuCapteur(capteurDeLAlerte(alerteSelectionnee)?._id)}
           vanneActuelle={vanneActuelle}
           onFermer={() => setAlerteSelectionnee(null)}
         />

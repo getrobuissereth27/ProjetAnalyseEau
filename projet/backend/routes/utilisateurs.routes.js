@@ -3,6 +3,8 @@ const router = express.Router();
 const ctrl = require('../controllers/utilisateurs.controller');
 const { proteger, exigerRole } = require('../middleware/auth.middleware');
 
+// Les droits fins (un administrateur ne gère que les responsables de ses sites)
+// sont vérifiés dans le contrôleur.
 router.get('/', proteger, exigerRole('administrateur'), ctrl.listerUtilisateurs);
 router.post('/', proteger, exigerRole('administrateur'), ctrl.creerUtilisateur);
 
@@ -11,7 +13,8 @@ router.post('/', proteger, exigerRole('administrateur'), ctrl.creerUtilisateur);
 router.patch('/me', proteger, ctrl.modifierMonProfil);
 router.patch('/me/password', proteger, ctrl.changerMonMotDePasse);
 
-router.patch('/:id/role', proteger, exigerRole('administrateur'), ctrl.changerRole);
+router.patch('/:id/role', proteger, exigerRole('superadmin'), ctrl.changerRole);
+router.patch('/:id/sites', proteger, exigerRole('administrateur'), ctrl.attribuerSites);
 router.patch('/:id', proteger, exigerRole('administrateur'), ctrl.modifierUtilisateur);
 router.delete('/:id', proteger, exigerRole('administrateur'), ctrl.supprimerUtilisateur);
 

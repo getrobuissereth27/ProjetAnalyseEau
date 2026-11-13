@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import ChangerMotDePasse from './ChangerMotDePasse';
 import ModifierProfil from './ModifierProfil';
+import { LIBELLES_ROLE } from '../utils/roles';
 
 function initiales(nom) {
   return nom
@@ -37,7 +38,7 @@ export default function Topbar({ titre, sousTitre }) {
             <div className="avatar">{initiales(utilisateur.nom)}</div>
             <div>
               <div className="name">{utilisateur.nom}</div>
-              <div className="role">{utilisateur.role === 'administrateur' ? 'Administrateur' : 'Responsable CAEPA'}</div>
+              <div className="role">{LIBELLES_ROLE[utilisateur.role] || utilisateur.role}</div>
             </div>
           </div>
 

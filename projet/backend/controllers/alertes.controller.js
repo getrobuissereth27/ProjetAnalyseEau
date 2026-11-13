@@ -1,25 +1,16 @@
 const Alerte = require('../models/alerte.model');
-const Mesure = require('../models/mesure.model');
-const Capteur = require('../models/capteur.model');
+const { filtreSites } = require('../middleware/auth.middleware');
 
-// Un site n'est jamais référencé directement par Alerte : il faut remonter la
-// chaîne capteur → mesure → alerte pour filtrer par site.
-async function idsCapteursDuSite(siteId) {
-  if (!siteId) return null; // pas de filtre
-  const capteurs = await Capteur.find({ site_id: siteId }).select('_id');
-  return capteurs.map((c) => c._id);
-}
-
-// GET /api/alerts?statut=active&page=1&limite=15&site=<id>
+// GET /api/alerts?statut=active&categorie=seuil&page=1&limite=15&site=<id>
+// Sans ?site, renvoie les alertes de tous les sites accessibles à l'utilisateur.
 exports.listerAlertes = async (req, res) => {
   try {
-    const filtre = req.query.statut ? { statut: req.query.statut } : {};
+    const filtreSite = filtreSites(req.utilisateur, req.query.site);
+    if (!filtreSite) return res.status(403).json({ erreur: "Tu n'as pas accès à ce site" });
 
-    if (req.query.site) {
-      const idsCapteurs = await idsCapteursDuSite(req.query.site);
-      const mesuresDuSite = await Mesure.find({ capteur_id: { $in: idsCapteurs } }).select('_id');
-      filtre.mesure_id = { $in: mesuresDuSite.map((m) => m._id) };
-    }
+    const filtre = { ...filtreSite };
+    if (req.query.statut) filtre.statut = req.query.statut;
+    if (req.query.categorie) filtre.categorie = req.query.categorie;
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limite = Math.min(100, Math.max(1, parseInt(req.query.limite, 10) || 15));
@@ -29,6 +20,7 @@ exports.listerAlertes = async (req, res) => {
         .sort({ horodatage: -1 })
         .skip((page - 1) * limite)
         .limit(limite)
+        .populate('capteur_id')
         .populate({ path: 'mesure_id', populate: { path: 'capteur_id' } }),
       Alerte.countDocuments(filtre),
     ]);
@@ -48,7 +40,7 @@ exports.listerAlertes = async (req, res) => {
 // DELETE /api/alerts/:id
 exports.supprimerAlerte = async (req, res) => {
   try {
-    const alerte = await Alerte.findByIdAndDelete(req.params.id);
+    const alerte = await Alerte.findOneAndDelete({ _id: req.params.id, ...filtreSites(req.utilisateur) });
     if (!alerte) return res.status(404).json({ erreur: 'Alerte introuvable' });
     res.json({ supprime: true, id: req.params.id });
   } catch (err) {
@@ -58,13 +50,14 @@ exports.supprimerAlerte = async (req, res) => {
 
 // DELETE /api/alerts   body: { ids: ["...", "..."] }
 // Suppression en masse — utilisée par la sélection multiple côté interface (page Alertes).
+// Seules les alertes des sites accessibles sont supprimées.
 exports.supprimerAlertes = async (req, res) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ erreur: 'Un tableau ids non vide est requis' });
     }
-    const resultat = await Alerte.deleteMany({ _id: { $in: ids } });
+    const resultat = await Alerte.deleteMany({ _id: { $in: ids }, ...filtreSites(req.utilisateur) });
     res.json({ supprimees: resultat.deletedCount });
   } catch (err) {
     res.status(500).json({ erreur: err.message });

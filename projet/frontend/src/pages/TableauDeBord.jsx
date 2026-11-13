@@ -6,11 +6,15 @@ import CarteCapteur from '../components/CarteCapteur';
 import GraphiqueHistorique from '../components/GraphiqueHistorique';
 import BandeauVanne from '../components/BandeauVanne';
 import { useSite } from '../sites/SiteContext';
+import { useAuth } from '../auth/AuthContext';
+import { capteurDeLAlerte, estSuperAdmin } from '../utils/roles';
 
 export default function TableauDeBord() {
   const { siteActifId, chargement: chargementSites } = useSite();
+  const { utilisateur } = useAuth();
   const [mesures, setMesures] = useState([]);
   const [alertes, setAlertes] = useState({ resultats: [], total: 0 });
+  const [alertesActives, setAlertesActives] = useState([]);
   const [vanne, setVanne] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [chargement, setChargement] = useState(true);
@@ -22,14 +26,17 @@ export default function TableauDeBord() {
 
     const charger = async () => {
       try {
-        const [resMesures, resAlertes, resVanne] = await Promise.all([
+        const [resMesures, resAlertes, resVanne, resActives] = await Promise.all([
           client.get(`/api/measurements/latest?site=${siteActifId}`),
           client.get(`/api/alerts?page=1&limite=8&site=${siteActifId}`),
           client.get(`/api/valve/state?site=${siteActifId}`),
+          // Toutes les alertes de seuil actives (pas seulement les 8 plus récentes) pour colorer chaque carte
+          client.get(`/api/alerts?statut=active&categorie=seuil&limite=100&site=${siteActifId}`),
         ]);
         setMesures(resMesures.data);
         setAlertes(resAlertes.data);
         setVanne(resVanne.data);
+        setAlertesActives(resActives.data.resultats);
         setErreur(null);
         setDerniereMaj(new Date());
       } catch (err) {
@@ -46,8 +53,12 @@ export default function TableauDeBord() {
     return () => clearInterval(intervalle);
   }, [siteActifId, chargementSites]);
 
-  const alertesActivesParCapteur = (capteurId) =>
-    alertes.resultats.some((a) => a.statut === 'active' && a.mesure_id?.capteur_id?._id === capteurId);
+  // Niveau de l'alerte de seuil active d'un capteur : null | 'avertissement' | 'critique'
+  const niveauAlerteDuCapteur = (capteurId) => {
+    const duCapteur = alertesActives.filter((a) => capteurDeLAlerte(a)?._id === capteurId);
+    if (duCapteur.length === 0) return null;
+    return duCapteur.some((a) => a.niveau !== 'avertissement') ? 'critique' : 'avertissement';
+  };
 
   const capteurPH = mesures.find((m) => m.type === 'pH')?.capteur_id;
   const capteurTurbidite = mesures.find((m) => m.type === 'turbidite')?.capteur_id;
@@ -63,8 +74,9 @@ export default function TableauDeBord() {
       {chargement && !erreur && <p className="chargement">Chargement des données…</p>}
       {!chargement && !erreur && !siteActifId && (
         <p className="chargement">
-          Aucun site n'existe encore — un administrateur peut en créer un depuis la barre latérale
-          ("+ Ajouter un site").
+          {estSuperAdmin(utilisateur)
+            ? 'Aucun site n\'existe encore — crée-en un depuis la barre latérale ("+ Ajouter un site").'
+            : "Aucun site ne t'est encore attribué — demande au super administrateur de t'en attribuer un."}
         </p>
       )}
 
@@ -79,9 +91,10 @@ export default function TableauDeBord() {
                 type={m.type}
                 valeur={m.valeur}
                 unite={m.unite}
-                enAlerte={alertesActivesParCapteur(m.capteur_id)}
+                niveauAlerte={niveauAlerteDuCapteur(m.capteur_id)}
                 statut={m.statut}
                 horodatage={m.horodatage}
+                seuil={m.seuil}
               />
             ))}
             {mesures.length === 0 && (
@@ -120,7 +133,7 @@ export default function TableauDeBord() {
                   <div style={{ flex: 1 }}>
                     <div className="alert-title">{a.type_alerte}</div>
                     <div className="alert-meta">
-                      {a.mesure_id?.capteur_id?.type ?? '?'} · {new Date(a.horodatage).toLocaleString('fr-FR')}
+                      {capteurDeLAlerte(a)?.type ?? '?'} · {new Date(a.horodatage).toLocaleString('fr-FR')}
                     </div>
                   </div>
                   <span className={`alert-status ${a.statut === 'active' ? 'active' : 'resolved'}`}>

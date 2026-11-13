@@ -23,7 +23,7 @@ tester sans matériel), puis comment déployer le client sur le **vrai Raspberry
   - `Tableau de bord` — cartes de mesures + aperçu du graphique + 15 alertes les plus récentes
   - `Historique` — graphique 7 jours + tableau détaillé par capteur, avec sélecteur de période
   - `Alertes` — liste complète avec filtres (actives/résolues) et **pagination** (15 par page)
-  - `Paramètres (admin)` — configuration des seuils, **visible uniquement pour le rôle administrateur**
+  - `Paramètres (admin)` — configuration des seuils (normaux et critiques) et du délai de défaillance de chaque capteur, **visible uniquement pour les administrateurs du site**
 - **Graphique** avec 3 courbes (pH, turbidité, conductivité), chacune mise à l'échelle
   indépendamment puisque leurs unités n'ont pas le même ordre de grandeur
 
@@ -47,12 +47,13 @@ dans un **second terminal**, initialise les capteurs et leurs seuils :
 docker compose exec backend npm run seed
 ```
 
-Ce script crée aussi 2 comptes de démonstration pour te connecter au tableau de bord :
+Ce script crée aussi 3 comptes de démonstration pour te connecter au tableau de bord :
 
 | Email | Mot de passe | Rôle |
 |---|---|---|
-| `caepa@demo.local` | `motdepasse123` | Responsable CAEPA |
-| `genio.admin@demo.local` | `motdepasse123` | Administrateur (accès à "Paramètres") |
+| `super.admin@demo.local` | `motdepasse123` | Super administrateur (tous les sites, crée les sites et les attribue) |
+| `genio.admin@demo.local` | `motdepasse123` | Administrateur du site 1 (accès à "Paramètres") |
+| `caepa@demo.local` | `motdepasse123` | Responsable CAEPA du site 1 |
 
 C'est tout. Ouvre ensuite :
 - Le tableau de bord : http://localhost:5174 (tu seras redirigé vers la page de connexion)
@@ -337,10 +338,26 @@ Le système peut surveiller **plusieurs points de captage indépendants** — ch
 avec ses propres capteurs, ses propres seuils, sa propre vanne. Toutes les données
 affichées (tableau de bord, historique, alertes, vanne) sont filtrées par site.
 
-**Changer de site** : le sélecteur en bas de la barre latérale liste tous les sites
-existants — un simple clic change instantanément toutes les données affichées.
+**Sites et utilisateurs** : un utilisateur appartient à un ou plusieurs sites, un site a
+plusieurs utilisateurs. Chacun ne voit que les sites qui lui sont attribués. Le **super
+administrateur** voit tous les sites, crée les sites et les attribue aux administrateurs
+(page "Utilisateurs"). Un administrateur gère les capteurs, seuils et responsables de
+ses propres sites uniquement. Au premier démarrage après la mise à jour, si aucun super
+administrateur n'existe, le plus ancien administrateur est promu automatiquement.
 
-**Ajouter un site** (réservé à l'administrateur) : bouton "+ Ajouter un site" sous le
+**Alertes** :
+- hors seuil min / max → alerte affichée, vanne fermée, **pas d'email** ;
+- au-delà du **seuil critique** → l'alerte passe en « critique » et un email est envoyé aux
+  responsables du site (destinataires configurés + utilisateurs rattachés au site).
+  Sans seuil critique configuré, l'email part dès le seuil min / max ;
+- un capteur qui n'envoie plus de mesure pendant plus de son **délai de défaillance**
+  (en secondes, réglable par capteur) est déclaré défectueux et les responsables du site
+  sont prévenus par email. Cette alerte ne ferme pas la vanne et se résout dès la mesure suivante.
+
+**Changer de site** : le sélecteur en bas de la barre latérale liste les sites
+qui te sont attribués — un simple clic change instantanément toutes les données affichées.
+
+**Ajouter un site** (réservé au super administrateur) : bouton "+ Ajouter un site" sous le
 sélecteur, qui ouvre un petit formulaire (nom + localisation optionnelle).
 
 **Rattacher des capteurs à un nouveau site** : après création d'un site, ses capteurs

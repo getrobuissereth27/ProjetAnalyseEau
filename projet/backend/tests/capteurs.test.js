@@ -37,7 +37,7 @@ beforeEach(async () => {
 
   const bcrypt = require('bcryptjs');
   const motDePasseHash = await bcrypt.hash('motdepasse123', 10);
-  await Utilisateur.create({ nom: 'Admin', email: 'admin@test.local', motDePasseHash, role: 'administrateur' });
+  await Utilisateur.create({ nom: 'Admin', email: 'admin@test.local', motDePasseHash, role: 'administrateur', sites: [siteTest._id] });
 
   const connexion = await request(app)
     .post('/api/auth/login')

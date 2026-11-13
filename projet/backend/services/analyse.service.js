@@ -1,20 +1,37 @@
 const Seuil = require('../models/seuil.model');
 const Alerte = require('../models/alerte.model');
-const Mesure = require('../models/mesure.model');
 const Capteur = require('../models/capteur.model');
-const Destinataire = require('../models/destinataire.model');
 const Site = require('../models/site.model');
 const { envoyerAlerteEmail } = require('./email.service');
+const { emailsResponsablesSite } = require('./responsables.service');
+
+/**
+ * Détermine le niveau de dépassement d'une valeur par rapport au seuil :
+ * - null            : dans la plage normale [valeur_min, valeur_max]
+ * - 'avertissement' : hors plage normale mais dans les seuils critiques
+ * - 'critique'      : au-delà d'un seuil critique. Si aucun seuil critique n'est
+ *                     défini d'un côté, le seuil normal de ce côté en tient lieu.
+ */
+function niveauDepassement(valeur, seuil) {
+  const critiqueMin = seuil.critique_min ?? seuil.valeur_min;
+  const critiqueMax = seuil.critique_max ?? seuil.valeur_max;
+
+  if (valeur < critiqueMin || valeur > critiqueMax) return 'critique';
+  if (valeur < seuil.valeur_min || valeur > seuil.valeur_max) return 'avertissement';
+  return null;
+}
 
 /**
  * Compare une mesure au seuil de son capteur.
  * - Si le capteur a été désactivé entre-temps (voir capteurs.controller.js), la
  *   mesure est tout de même enregistrée (le heartbeat continue d'exister), mais
  *   elle n'est plus jamais comparée aux seuils.
- * - Si la valeur est hors seuil : crée une alerte active (sauf s'il y en a déjà
- *   une active pour ce capteur, pour éviter le spam à chaque cycle de mesure).
- * - Si la valeur est revenue dans les limites : résout automatiquement toute
- *   alerte active de ce capteur — c'est ce qui permet à la vanne de se rouvrir
+ * - Hors plage normale : crée une alerte active (une seule par capteur, pour
+ *   éviter le spam à chaque cycle de mesure). L'email n'est envoyé que si le
+ *   seuil CRITIQUE est franchi — y compris si une alerte « avertissement »
+ *   déjà active s'aggrave en « critique » (escalade, un seul email).
+ * - Revenue dans la plage normale : résout automatiquement toute alerte de
+ *   seuil active de ce capteur — c'est ce qui permet à la vanne de se rouvrir
  *   automatiquement (voir vanne.controller.js).
  */
 async function verifierSeuil(mesure) {
@@ -24,62 +41,72 @@ async function verifierSeuil(mesure) {
   ]);
   if (!seuil || !capteur || !capteur.actif) return null;
 
-  const horsSeuil = mesure.valeur < seuil.valeur_min || mesure.valeur > seuil.valeur_max;
+  const niveau = niveauDepassement(mesure.valeur, seuil);
 
-  if (horsSeuil) {
-    const dejaActive = await alerteActiveExiste(mesure.capteur_id);
-    if (dejaActive) return null;
-
-    const alerte = await Alerte.create({
-      mesure_id: mesure._id,
-      type_alerte: 'Valeur hors seuil',
-      statut: 'active',
-    });
-
-    // Best-effort : un échec d'envoi d'email ne doit jamais faire échouer la
-    // création de l'alerte elle-même, d'où le .catch() plutôt qu'un await direct.
-    notifierParEmail(capteur, mesure, seuil).catch((err) => {
-      console.error("✘ Échec de la notification par email :", err.message);
-    });
-
-    return alerte;
+  if (!niveau) {
+    await resoudreAlertesActives(mesure.capteur_id, 'seuil');
+    return null;
   }
 
-  await resoudreAlertesActives(mesure.capteur_id);
-  return null;
+  const [dejaActive] = await alertesActivesDuCapteur(mesure.capteur_id, 'seuil');
+
+  if (dejaActive) {
+    // Escalade : l'alerte existante passe en critique, on notifie une seule fois.
+    if (niveau === 'critique' && dejaActive.niveau !== 'critique') {
+      dejaActive.niveau = 'critique';
+      dejaActive.type_alerte = 'Seuil critique dépassé';
+      dejaActive.mesure_id = mesure._id;
+      dejaActive.emailEnvoye = true;
+      await dejaActive.save();
+      lancerNotification(capteur, mesure, seuil);
+    }
+    return null;
+  }
+
+  const alerte = await Alerte.create({
+    mesure_id: mesure._id,
+    capteur_id: capteur._id,
+    site_id: capteur.site_id,
+    categorie: 'seuil',
+    niveau,
+    type_alerte: niveau === 'critique' ? 'Seuil critique dépassé' : 'Valeur hors seuil',
+    statut: 'active',
+    emailEnvoye: niveau === 'critique',
+  });
+
+  if (niveau === 'critique') lancerNotification(capteur, mesure, seuil);
+
+  return alerte;
 }
 
-// Une alerte est liée à une mesure, elle-même liée à un capteur — cette fonction
-// retrouve les alertes actives concernant un capteur donné, en remontant ce lien.
-async function alertesActivesDuCapteur(capteurId) {
-  const mesuresDuCapteur = await Mesure.find({ capteur_id: capteurId }).select('_id');
-  const idsMesures = mesuresDuCapteur.map((m) => m._id);
-  return Alerte.find({ mesure_id: { $in: idsMesures }, statut: 'active' });
+// Best-effort : un échec d'envoi d'email ne doit jamais faire échouer la
+// création de l'alerte elle-même, d'où le .catch() plutôt qu'un await direct.
+function lancerNotification(capteur, mesure, seuil) {
+  notifierParEmail(capteur, mesure, seuil).catch((err) => {
+    console.error('✘ Échec de la notification par email :', err.message);
+  });
 }
 
-async function alerteActiveExiste(capteurId) {
-  const alertes = await alertesActivesDuCapteur(capteurId);
-  return alertes.length > 0;
+async function alertesActivesDuCapteur(capteurId, categorie) {
+  const filtre = { capteur_id: capteurId, statut: 'active' };
+  if (categorie) filtre.categorie = categorie;
+  return Alerte.find(filtre);
 }
 
-async function resoudreAlertesActives(capteurId) {
-  const alertes = await alertesActivesDuCapteur(capteurId);
-  if (alertes.length === 0) return;
-  const ids = alertes.map((a) => a._id);
-  await Alerte.updateMany({ _id: { $in: ids } }, { statut: 'resolue', dateResolution: new Date() });
+async function resoudreAlertesActives(capteurId, categorie) {
+  const filtre = { capteur_id: capteurId, statut: 'active' };
+  if (categorie) filtre.categorie = categorie;
+  await Alerte.updateMany(filtre, { statut: 'resolue', dateResolution: new Date() });
 }
 
-// Envoie un email à tous les destinataires actifs du site concerné — silencieux
-// s'il n'y en a aucun (voir la page "Destinataires des alertes par email").
+// Envoie un email aux responsables du site concerné — silencieux s'il n'y en a aucun.
 async function notifierParEmail(capteur, mesure, seuil) {
-  // $ne: false plutôt que true : les destinataires créés avant l'ajout du champ
-  // "actif" ne l'ont pas en base, et doivent être considérés actifs (défaut du schéma).
-  const destinataires = await Destinataire.find({ site_id: capteur.site_id, actif: { $ne: false } }).select('email');
+  const destinataires = await emailsResponsablesSite(capteur.site_id);
   if (destinataires.length === 0) return;
 
   const site = await Site.findById(capteur.site_id).select('nom');
   await envoyerAlerteEmail({
-    destinataires: destinataires.map((d) => d.email),
+    destinataires,
     type: capteur.type,
     valeur: mesure.valeur,
     unite: capteur.unite,
@@ -88,4 +115,4 @@ async function notifierParEmail(capteur, mesure, seuil) {
   });
 }
 
-module.exports = { verifierSeuil, alertesActivesDuCapteur };
+module.exports = { verifierSeuil, niveauDepassement, alertesActivesDuCapteur, resoudreAlertesActives };

@@ -73,25 +73,35 @@ export default function ParametresSeuils() {
   };
 
   const enregistrer = async (seuil) => {
-    const modif = modifications[seuil.capteur_id._id] || {};
-    const valeur_min = modif.valeur_min !== undefined ? modif.valeur_min : seuil.valeur_min;
-    const valeur_max = modif.valeur_max !== undefined ? modif.valeur_max : seuil.valeur_max;
+    const id = seuil.capteur_id._id;
+    const modif = modifications[id] || {};
+    const valeurDe = (champ) => (modif[champ] !== undefined ? modif[champ] : seuil[champ]);
+    const valeur_min = valeurDe('valeur_min');
+    const valeur_max = valeurDe('valeur_max');
+    const vide = (v) => v === null || v === undefined || v === '';
 
-    if (valeur_min === null || valeur_min === '' || valeur_max === null || valeur_max === '') {
-      setMessages((m) => ({ ...m, [seuil.capteur_id._id]: '⚠ Remplis min et max' }));
+    if (vide(valeur_min) || vide(valeur_max)) {
+      setMessages((m) => ({ ...m, [id]: '⚠ Remplis min et max' }));
       return;
     }
 
     try {
-      await client.put(`/api/thresholds/${seuil.capteur_id._id}`, {
+      await client.put(`/api/thresholds/${id}`, {
         valeur_min: Number(valeur_min),
         valeur_max: Number(valeur_max),
+        // Champ vide = pas de seuil critique de ce côté (email dès le seuil normal)
+        critique_min: vide(valeurDe('critique_min')) ? null : Number(valeurDe('critique_min')),
+        critique_max: vide(valeurDe('critique_max')) ? null : Number(valeurDe('critique_max')),
       });
-      setMessages((m) => ({ ...m, [seuil.capteur_id._id]: '✔ Enregistré' }));
+      if (modif.delaiDefaillanceSecondes !== undefined && modif.delaiDefaillanceSecondes !== '') {
+        await client.patch(`/api/sensors/${id}`, { delaiDefaillanceSecondes: Number(modif.delaiDefaillanceSecondes) });
+      }
+      setModifications((prev) => ({ ...prev, [id]: {} }));
+      setMessages((m) => ({ ...m, [id]: '✔ Enregistré' }));
       charger();
-      setTimeout(() => setMessages((m) => ({ ...m, [seuil.capteur_id._id]: null })), 2500);
+      setTimeout(() => setMessages((m) => ({ ...m, [id]: null })), 2500);
     } catch (err) {
-      setMessages((m) => ({ ...m, [seuil.capteur_id._id]: '✘ Erreur' }));
+      setMessages((m) => ({ ...m, [id]: `✘ ${err.response?.data?.erreur || 'Erreur'}` }));
     }
   };
 
@@ -201,7 +211,7 @@ export default function ParametresSeuils() {
   return (
     <Layout titre="Configuration des seuils d'alerte" sousTitre='Cas d’utilisation : « Configurer les seuils d’alerte »'>
       <div style={styles.banniereRole}>
-        Page réservée au rôle Administrateur — invisible pour le Responsable CAEPA
+        Page réservée aux administrateurs du site — invisible pour le Responsable CAEPA
       </div>
 
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}
@@ -287,14 +297,21 @@ export default function ParametresSeuils() {
       </div>
 
       <div className="panel" style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse' }}>
+        <p style={styles.aideSeuils}>
+          <strong>Seuil min / max</strong> : en dehors, une alerte s'affiche et la vanne se ferme.{' '}
+          <strong>Seuil critique</strong> : au-delà, un email est envoyé aux responsables du site
+          (laisser vide = email dès le seuil min / max).{' '}
+          <strong>Délai sans mesure</strong> : au-delà, le capteur est déclaré défectueux et les responsables sont prévenus.
+        </p>
+        <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ textAlign: 'left', fontSize: 11.5, color: '#64748B', textTransform: 'uppercase' }}>
               <th style={{ padding: '10px 0' }}>Capteur</th>
               <th style={{ padding: '10px 0' }}>Broche</th>
               <th style={{ padding: '10px 0' }}>État</th>
-              <th style={{ padding: '10px 0' }}>Seuil minimum</th>
-              <th style={{ padding: '10px 0' }}>Seuil maximum</th>
+              <th style={{ padding: '10px 4px' }}>Seuil min / max</th>
+              <th style={{ padding: '10px 4px', color: '#B91C1C' }}>Critique min / max</th>
+              <th style={{ padding: '10px 4px' }}>Délai sans mesure (s)</th>
               <th style={{ padding: '10px 0' }}></th>
             </tr>
           </thead>
@@ -356,23 +373,59 @@ export default function ParametresSeuils() {
                     </button>
                   </div>
                 </td>
-                <td style={{ padding: '14px 0' }}>
+                <td style={{ padding: '14px 4px', whiteSpace: 'nowrap' }}>
                   <input
+                    key={`min-${s.valeur_min}`}
                     style={styles.champ}
                     type="number" step="any"
                     defaultValue={s.valeur_min ?? ''}
                     placeholder="min"
                     onChange={(e) => changerChamp(s.capteur_id._id, 'valeur_min', e.target.value)}
-                  />
-                </td>
-                <td style={{ padding: '14px 0' }}>
+                  />{' '}
                   <input
+                    key={`max-${s.valeur_max}`}
                     style={styles.champ}
                     type="number" step="any"
                     defaultValue={s.valeur_max ?? ''}
                     placeholder="max"
                     onChange={(e) => changerChamp(s.capteur_id._id, 'valeur_max', e.target.value)}
                   />
+                </td>
+                <td style={{ padding: '14px 4px', whiteSpace: 'nowrap' }}>
+                  <input
+                    key={`cmin-${s.critique_min}`}
+                    style={{ ...styles.champ, ...styles.champCritique }}
+                    type="number" step="any"
+                    defaultValue={s.critique_min ?? ''}
+                    placeholder="—"
+                    title="Seuil critique minimum (≤ seuil min)"
+                    onChange={(e) => changerChamp(s.capteur_id._id, 'critique_min', e.target.value)}
+                  />{' '}
+                  <input
+                    key={`cmax-${s.critique_max}`}
+                    style={{ ...styles.champ, ...styles.champCritique }}
+                    type="number" step="any"
+                    defaultValue={s.critique_max ?? ''}
+                    placeholder="—"
+                    title="Seuil critique maximum (≥ seuil max)"
+                    onChange={(e) => changerChamp(s.capteur_id._id, 'critique_max', e.target.value)}
+                  />
+                </td>
+                <td style={{ padding: '14px 4px' }}>
+                  <input
+                    key={`delai-${s.capteur_id.delaiDefaillanceSecondes}`}
+                    style={styles.champ}
+                    type="number" min={10} step={1}
+                    defaultValue={s.capteur_id.delaiDefaillanceSecondes ?? ''}
+                    title="Nombre de secondes sans mesure avant de déclarer le capteur défectueux (minimum 10)"
+                    onChange={(e) => changerChamp(s.capteur_id._id, 'delaiDefaillanceSecondes', e.target.value)}
+                  />
+                  {s.capteur_id.delaiDefaillanceSecondes >= 60 && (
+                    <p style={styles.aideDelai}>
+                      = {Math.floor(s.capteur_id.delaiDefaillanceSecondes / 60)} min
+                      {s.capteur_id.delaiDefaillanceSecondes % 60 ? ` ${s.capteur_id.delaiDefaillanceSecondes % 60} s` : ''}
+                    </p>
+                  )}
                 </td>
                 <td style={{ padding: '14px 0', display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap' }}>
                   {editionId === s.capteur_id._id ? (
@@ -400,7 +453,7 @@ export default function ParametresSeuils() {
               </tr>
             ))}
             {seuils.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: '14px 0', color: '#64748B' }}>Aucun capteur pour ce site pour l'instant.</td></tr>
+              <tr><td colSpan={7} style={{ padding: '14px 0', color: '#64748B' }}>Aucun capteur pour ce site pour l'instant.</td></tr>
             )}
           </tbody>
         </table>
@@ -418,7 +471,10 @@ const styles = {
   champForm: { width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13 },
   boutonValider: { padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', background: '#0F766E', color: 'white', cursor: 'pointer' },
   aideForm: { fontSize: 11.5, color: '#94A3B8', marginTop: 10, lineHeight: 1.5 },
-  champ: { width: 90, padding: '7px 10px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontWeight: 600 },
+  champ: { width: 76, padding: '7px 8px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontWeight: 600 },
+  champCritique: { borderColor: '#FECACA', background: '#FEF2F2' },
+  aideSeuils: { fontSize: 11.5, color: '#64748B', lineHeight: 1.6, marginBottom: 10 },
+  aideDelai: { fontSize: 10.5, color: '#94A3B8', margin: '3px 0 0' },
   bouton: { padding: '7px 16px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, border: 'none', background: '#0F766E', color: 'white', cursor: 'pointer' },
   puceNouveau: { display: 'inline-block', marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '2px 8px', borderRadius: 999 },
   champEdition: { fontSize: 12.5, padding: '5px 8px', border: '1px solid #0F766E', borderRadius: 6, width: '100%', maxWidth: 180, boxSizing: 'border-box' },

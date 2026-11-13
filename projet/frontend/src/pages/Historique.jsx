@@ -6,22 +6,35 @@ import { grouperParCycle } from '../utils/mesures';
 import { exporterCSV, exporterExcel } from '../utils/export';
 import { useSite } from '../sites/SiteContext';
 import { useAuth } from '../auth/AuthContext';
+import { estAdmin } from '../utils/roles';
 import { useConfirmer } from '../confirm/ConfirmContext';
 
 const NB_LIGNES_VISIBLES = 10;
 const HAUTEUR_LIGNE = 40; // px, doit correspondre au padding défini dans le style des cellules
 const CLES_CAPTEURS = ['ph', 'turbidite', 'temperature', 'tds'];
 
+// Date du jour décalée de n jours, au format attendu par <input type="date"> (heure locale)
+function dateLocale(decalageJours = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + decalageJours);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const jj = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${jj}`;
+}
+
 export default function Historique() {
   const confirmer = useConfirmer();
   const { siteActifId } = useSite();
   const { utilisateur } = useAuth();
-  const estAdmin = utilisateur?.role === 'administrateur';
+  const peutGerer = estAdmin(utilisateur);
   const [mesures, setMesures] = useState([]);
-  const [jours, setJours] = useState(7);
+  // Plage choisie par l'utilisateur (par défaut : les 7 derniers jours)
+  const [dateDebut, setDateDebut] = useState(() => dateLocale(-6));
+  const [dateFin, setDateFin] = useState(() => dateLocale(0));
   const [lignes, setLignes] = useState([]);
   const [chargementTableau, setChargementTableau] = useState(true);
-  const [telechargementEnCours, setTelechargementEnCours] = useState(false);
+
+  const plageInvalide = !dateDebut || !dateFin || dateDebut > dateFin;
   const [erreur, setErreur] = useState(null);
   const [selectionnees, setSelectionnees] = useState(new Set());
   const [suppressionEnCours, setSuppressionEnCours] = useState(false);
@@ -37,13 +50,19 @@ export default function Historique() {
   const idParType = (type) => mesures.find((m) => m.type === type)?.capteur_id;
 
   useEffect(() => {
-    if (mesures.length === 0) return;
+    if (mesures.length === 0 || plageInvalide) return;
     setChargementTableau(true);
 
     const capteurs = { ph: idParType('pH'), turbidite: idParType('turbidite'), temperature: idParType('temperature'), tds: idParType('tds') };
     const cles = Object.entries(capteurs).filter(([, id]) => id);
 
-    Promise.all(cles.map(([, id]) => client.get(`/api/measurements/history?capteur=${id}&jours=${jours}`)))
+    // Du début du jour de départ (00:00) à la fin du jour d'arrivée (23:59:59), en heure locale
+    const params = new URLSearchParams({
+      debut: new Date(`${dateDebut}T00:00:00`).toISOString(),
+      fin: new Date(`${dateFin}T23:59:59.999`).toISOString(),
+    });
+
+    Promise.all(cles.map(([, id]) => client.get(`/api/measurements/history?capteur=${id}&${params.toString()}`)))
       .then((reponses) => {
         const donneesParCle = {};
         cles.forEach(([cle], i) => { donneesParCle[cle] = reponses[i].data; });
@@ -51,29 +70,14 @@ export default function Historique() {
       })
       .catch(() => setErreur("Impossible de charger l'historique."))
       .finally(() => setChargementTableau(false));
-  }, [mesures, jours, versionRafraichissement]);
+  }, [mesures, dateDebut, dateFin, versionRafraichissement]);
 
   const capteurPH = idParType('pH');
   const capteurTurbidite = idParType('turbidite');
   const capteurTemperature = idParType('temperature');
   const capteurConductivite = idParType('tds');
 
-  const telechargerToutLHistorique = async () => {
-    setTelechargementEnCours(true);
-    try {
-      const capteurs = { ph: idParType('pH'), turbidite: idParType('turbidite'), temperature: idParType('temperature'), tds: idParType('tds') };
-      const cles = Object.entries(capteurs).filter(([, id]) => id);
-      const reponses = await Promise.all(cles.map(([, id]) => client.get(`/api/measurements/history?capteur=${id}&jours=90`)));
-      const donneesParCle = {};
-      cles.forEach(([cle], i) => { donneesParCle[cle] = reponses[i].data; });
-      const toutesLesLignes = grouperParCycle(donneesParCle);
-      exporterExcel(toutesLesLignes, `historique_complet_90j.xlsx`);
-    } catch (err) {
-      setErreur("Impossible de télécharger l'historique complet.");
-    } finally {
-      setTelechargementEnCours(false);
-    }
-  };
+  const nomFichier = `historique_${dateDebut}_au_${dateFin}`;
 
   const idsDeLaLigne = (l) => CLES_CAPTEURS.map((c) => l[`${c}_id`]).filter(Boolean);
 
@@ -130,21 +134,34 @@ export default function Historique() {
         <div className="panel-header" style={{ flexWrap: 'wrap', gap: 10 }}>
           <h2>Tableau des mesures</h2>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <select value={jours} onChange={(e) => setJours(Number(e.target.value))} style={styles.select}>
-              <option value={1}>24h</option>
-              <option value={7}>7 jours</option>
-              <option value={30}>30 jours</option>
-            </select>
-            <button style={styles.btnSecondaire} onClick={() => exporterCSV(lignes, `historique_${jours}j.csv`)} disabled={lignes.length === 0}>
+            <label style={styles.labelDate}>
+              Du
+              <input
+                type="date"
+                style={styles.select}
+                value={dateDebut}
+                max={dateFin || undefined}
+                onChange={(e) => setDateDebut(e.target.value)}
+              />
+            </label>
+            <label style={styles.labelDate}>
+              au
+              <input
+                type="date"
+                style={styles.select}
+                value={dateFin}
+                min={dateDebut || undefined}
+                max={dateLocale(0)}
+                onChange={(e) => setDateFin(e.target.value)}
+              />
+            </label>
+            <button style={styles.btnSecondaire} onClick={() => exporterCSV(lignes, `${nomFichier}.csv`)} disabled={plageInvalide || lignes.length === 0}>
               ⬇ Export CSV
             </button>
-            <button style={styles.btnSecondaire} onClick={() => exporterExcel(lignes, `historique_${jours}j.xlsx`)} disabled={lignes.length === 0}>
+            <button style={styles.btnPrincipal} onClick={() => exporterExcel(lignes, `${nomFichier}.xlsx`)} disabled={plageInvalide || lignes.length === 0}>
               ⬇ Export Excel
             </button>
-            <button style={styles.btnPrincipal} onClick={telechargerToutLHistorique} disabled={telechargementEnCours}>
-              {telechargementEnCours ? 'Préparation…' : '⬇ Télécharger tout l\'historique (90j)'}
-            </button>
-            {estAdmin && selectionnees.size > 0 && (
+            {peutGerer && selectionnees.size > 0 && (
               <button
                 style={styles.btnDanger}
                 onClick={() => supprimerLignes([...selectionnees])}
@@ -156,19 +173,23 @@ export default function Historique() {
           </div>
         </div>
 
-        {chargementTableau && <p className="chargement">Chargement du tableau…</p>}
+        {plageInvalide && (
+          <p className="chargement">Choisis une date de début antérieure ou égale à la date de fin.</p>
+        )}
 
-        {!chargementTableau && lignes.length === 0 && (
+        {!plageInvalide && chargementTableau && <p className="chargement">Chargement du tableau…</p>}
+
+        {!plageInvalide && !chargementTableau && lignes.length === 0 && (
           <p className="chargement">Aucune mesure sur cette période.</p>
         )}
 
-        {!chargementTableau && lignes.length > 0 && (
+        {!plageInvalide && !chargementTableau && lignes.length > 0 && (
           <>
             <div style={{ ...styles.conteneurTableau, maxHeight: NB_LIGNES_VISIBLES * HAUTEUR_LIGNE + HAUTEUR_LIGNE }}>
               <table style={styles.tableau}>
                 <thead>
                   <tr>
-                    {estAdmin && (
+                    {peutGerer && (
                       <th style={{ ...styles.enteteCellule, width: 32 }}>
                         <input type="checkbox" onChange={toutSelectionner} checked={selectionnees.size > 0 && selectionnees.size === lignes.length} />
                       </th>
@@ -178,13 +199,13 @@ export default function Historique() {
                     <th style={{ ...styles.enteteCellule, color: '#B45309' }}>Turbidité (NTU)</th>
                     <th style={{ ...styles.enteteCellule, color: '#15803D' }}>Température (°C)</th>
                     <th style={{ ...styles.enteteCellule, color: '#7C3AED' }}>Conductivité (ppm)</th>
-                    {estAdmin && <th style={styles.enteteCellule}></th>}
+                    {peutGerer && <th style={styles.enteteCellule}></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {lignes.map((l) => (
                     <tr key={l.t}>
-                      {estAdmin && (
+                      {peutGerer && (
                         <td style={styles.cellule}>
                           <input type="checkbox" checked={selectionnees.has(l.t)} onChange={() => basculerSelection(l.t)} />
                         </td>
@@ -194,7 +215,7 @@ export default function Historique() {
                       <td style={styles.cellule}>{l.turbidite !== undefined ? l.turbidite.toFixed(2) : '—'}</td>
                       <td style={styles.cellule}>{l.temperature !== undefined ? l.temperature.toFixed(1) : '—'}</td>
                       <td style={styles.cellule}>{l.tds !== undefined ? l.tds.toFixed(0) : '—'}</td>
-                      {estAdmin && (
+                      {peutGerer && (
                         <td style={styles.cellule}>
                           <button style={styles.btnSupprLigne} onClick={() => supprimerLignes([l.t])} disabled={suppressionEnCours} title="Supprimer cette ligne">
                             🗑
@@ -217,6 +238,7 @@ export default function Historique() {
 }
 
 const styles = {
+  labelDate: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#64748B' },
   select: { fontSize: 12.5, padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155' },
   btnSecondaire: { fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155', cursor: 'pointer' },
   btnPrincipal: { fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: 'none', background: '#0F766E', color: 'white', cursor: 'pointer' },

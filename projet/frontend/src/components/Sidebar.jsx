@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import SelecteurSite from './SelecteurSite';
+import { estAdmin } from '../utils/roles';
 
 const LIENS = [
   { to: '/', label: 'Tableau de bord', fin: true },
@@ -23,7 +24,7 @@ export default function Sidebar({ onNavigate }) {
         </div>
       </div>
 
-      {LIENS.filter((l) => !l.adminSeulement || utilisateur?.role === 'administrateur').map((lien) => (
+      {LIENS.filter((l) => !l.adminSeulement || estAdmin(utilisateur)).map((lien) => (
         <NavLink
           key={lien.to}
           to={lien.to}

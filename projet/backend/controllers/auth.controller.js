@@ -28,7 +28,13 @@ exports.connexion = async (req, res) => {
 
     res.json({
       jeton,
-      utilisateur: { id: utilisateur._id, nom: utilisateur.nom, email: utilisateur.email, role: utilisateur.role },
+      utilisateur: {
+        id: utilisateur._id,
+        nom: utilisateur.nom,
+        email: utilisateur.email,
+        role: utilisateur.role,
+        sites: utilisateur.sites || [],
+      },
     });
   } catch (err) {
     res.status(500).json({ erreur: err.message });

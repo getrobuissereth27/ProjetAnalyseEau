@@ -38,9 +38,9 @@ beforeEach(async () => {
   siteTest = await Site.create({ nom: 'Site de test' });
 });
 
-async function creerUtilisateur(role) {
+async function creerUtilisateur(role, sites = [siteTest._id]) {
   const motDePasseHash = await bcrypt.hash('motdepasse123', 10);
-  return Utilisateur.create({ nom: 'Test', email: `${role}@test.local`, motDePasseHash, role });
+  return Utilisateur.create({ nom: 'Test', email: `${role}@test.local`, motDePasseHash, role, sites });
 }
 
 test('POST /api/auth/login refuse un mauvais mot de passe', async () => {

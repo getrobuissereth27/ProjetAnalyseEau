@@ -35,7 +35,10 @@ export function SiteProvider({ children }) {
     }
   };
 
-  useEffect(() => { chargerSites(); }, [utilisateur?.id]);
+  // Rechargée à la connexion, et dès que le rôle ou les sites du compte changent
+  // (voir le rafraîchissement du profil dans AuthContext).
+  const cleSites = `${utilisateur?.id}|${utilisateur?.role}|${(utilisateur?.sites || []).join(',')}`;
+  useEffect(() => { chargerSites(); }, [cleSites]);
 
   useEffect(() => {
     if (siteActifId) localStorage.setItem('siteActifId', siteActifId);

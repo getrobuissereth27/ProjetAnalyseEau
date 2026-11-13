@@ -145,3 +145,23 @@ test("GET /api/measurements/history refuse une plage inversée", async () => {
     .set('Authorization', 'Bearer ' + jeton);
   expect(res.status).toBe(400);
 });
+
+test("DELETE /api/measurements répond 413 avec un message clair si la requête est trop volumineuse", async () => {
+  const ids = Array.from({ length: 6000 }, () => new mongoose.Types.ObjectId().toString());
+  const admin = await jetonPour('administrateur', [siteTest._id]);
+  const res = await request(app).delete('/api/measurements').set('Authorization', 'Bearer ' + admin).send({ ids });
+  expect(res.status).toBe(413);
+  expect(res.body.erreur).toMatch(/trop volumineuse/);
+});
+
+test("DELETE /api/measurements supprime un paquet de 500 mesures", async () => {
+  const Mesure = require('../models/mesure.model');
+  const capteur = await Capteur.create({ site_id: siteTest._id, type: 'pH', modele: 'Test', unite: 'pH' });
+  const mesures = await Mesure.insertMany(Array.from({ length: 500 }, (_, i) => ({ capteur_id: capteur._id, valeur: 7 + i / 1000 })));
+  const admin = await jetonPour('administrateur', [siteTest._id]);
+
+  const res = await request(app).delete('/api/measurements').set('Authorization', 'Bearer ' + admin)
+    .send({ ids: mesures.map((m) => m._id.toString()) });
+  expect(res.status).toBe(200);
+  expect(res.body.supprimees).toBe(500);
+});

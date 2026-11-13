@@ -48,12 +48,27 @@ exports.supprimerAlerte = async (req, res) => {
   }
 };
 
-// DELETE /api/alerts   body: { ids: ["...", "..."] }
+// DELETE /api/alerts
+//   body: { ids: ["...", "..."] }                       → ces alertes-là
+//   body: { tout: true, site: "<id>", statut?: "..." }  → toutes les alertes du site
+//                                                         correspondant au filtre
 // Suppression en masse — utilisée par la sélection multiple côté interface (page Alertes).
+// Le mode « tout » évite d'envoyer des milliers d'identifiants dans une seule requête.
 // Seules les alertes des sites accessibles sont supprimées.
 exports.supprimerAlertes = async (req, res) => {
   try {
-    const { ids } = req.body;
+    const { ids, tout, site, statut, categorie } = req.body;
+
+    if (tout === true) {
+      if (!site) return res.status(400).json({ erreur: 'Le site est requis pour tout supprimer' });
+      const filtre = filtreSites(req.utilisateur, site);
+      if (!filtre) return res.status(403).json({ erreur: "Tu n'as pas accès à ce site" });
+      if (statut) filtre.statut = statut;
+      if (categorie) filtre.categorie = categorie;
+      const resultat = await Alerte.deleteMany(filtre);
+      return res.json({ supprimees: resultat.deletedCount });
+    }
+
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ erreur: 'Un tableau ids non vide est requis' });
     }

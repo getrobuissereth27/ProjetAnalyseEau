@@ -19,13 +19,21 @@ tester sans matériel), puis comment déployer le client sur le **vrai Raspberry
 
 - **Connexion réelle** (page `/connexion`) — le nom et le rôle affichés en haut à droite
   viennent du compte connecté, ce ne sont plus des valeurs figées dans le code
-- **4 pages fonctionnelles**, accessibles depuis la barre latérale :
-  - `Tableau de bord` — cartes de mesures + aperçu du graphique + 15 alertes les plus récentes
-  - `Historique` — graphique 7 jours + tableau détaillé par capteur, avec sélecteur de période
-  - `Alertes` — liste complète avec filtres (actives/résolues) et **pagination** (15 par page)
-  - `Paramètres (admin)` — configuration des seuils (normaux et critiques) et du délai de défaillance de chaque capteur, **visible uniquement pour les administrateurs du site**
-- **Graphique** avec 3 courbes (pH, turbidité, conductivité), chacune mise à l'échelle
-  indépendamment puisque leurs unités n'ont pas le même ordre de grandeur
+- **5 pages**, accessibles depuis la barre latérale :
+  - `Tableau de bord` — une carte par capteur (valeur, état, et en petit les **seuils
+    configurés** : « Seuil : 6.5 – 8.5 pH · Critique : 6 – 9 pH »), état de la vanne,
+    graphique 7 jours et alertes les plus récentes
+  - `Historique` — graphique 7 jours + tableau détaillé ; l'utilisateur choisit librement
+    la **plage de dates** (« Du … au … ») et exporte cette plage en CSV ou Excel
+  - `Alertes` — liste complète avec filtres (actives/résolues), **pagination** (15 par page),
+    niveau (avertissement / critique) et alertes « capteur ne répond plus »
+  - `Paramètres (admin)` — capteurs du site, seuils normaux et **critiques**, **délai sans
+    mesure** avant de déclarer un capteur défectueux, destinataires des emails
+  - `Utilisateurs (admin)` — comptes, rôles et attribution des sites (voir section 4ter)
+- **Multi-sites avec droits par site** : chaque utilisateur ne voit que les sites qui lui
+  sont attribués ; un super administrateur gère l'ensemble
+- **Graphique** avec 4 courbes (pH, turbidité, température, conductivité), chacune mise à
+  l'échelle indépendamment puisque leurs unités n'ont pas le même ordre de grandeur
 
 ---
 
@@ -51,9 +59,15 @@ Ce script crée aussi 3 comptes de démonstration pour te connecter au tableau d
 
 | Email | Mot de passe | Rôle |
 |---|---|---|
-| `super.admin@demo.local` | `motdepasse123` | Super administrateur (tous les sites, crée les sites et les attribue) |
-| `genio.admin@demo.local` | `motdepasse123` | Administrateur du site 1 (accès à "Paramètres") |
-| `caepa@demo.local` | `motdepasse123` | Responsable CAEPA du site 1 |
+| `super.admin@demo.local` | `motdepasse123` | Super administrateur — tous les sites, crée les sites et les attribue |
+| `genio.admin@demo.local` | `motdepasse123` | Administrateur du site 1 — « Paramètres » et « Utilisateurs » de son site |
+| `caepa@demo.local` | `motdepasse123` | Responsable CAEPA du site 1 — consultation uniquement |
+
+> Mot de passe oublié sur une base existante ? Remets tous les comptes à `motdepasse123` :
+>
+> ```bash
+> docker compose exec backend node -e "const m=require('mongoose'),b=require('bcryptjs'),U=require('./models/utilisateur.model');m.connect(process.env.MONGODB_URI).then(async()=>{await U.updateMany({},{motDePasseHash:await b.hash('motdepasse123',10)});await m.disconnect()})"
+> ```
 
 C'est tout. Ouvre ensuite :
 - Le tableau de bord : http://localhost:5174 (tu seras redirigé vers la page de connexion)
@@ -338,21 +352,57 @@ Le système peut surveiller **plusieurs points de captage indépendants** — ch
 avec ses propres capteurs, ses propres seuils, sa propre vanne. Toutes les données
 affichées (tableau de bord, historique, alertes, vanne) sont filtrées par site.
 
-**Sites et utilisateurs** : un utilisateur appartient à un ou plusieurs sites, un site a
-plusieurs utilisateurs. Chacun ne voit que les sites qui lui sont attribués. Le **super
-administrateur** voit tous les sites, crée les sites et les attribue aux administrateurs
-(page "Utilisateurs"). Un administrateur gère les capteurs, seuils et responsables de
-ses propres sites uniquement. Au premier démarrage après la mise à jour, si aucun super
-administrateur n'existe, le plus ancien administrateur est promu automatiquement.
+### Sites et utilisateurs
 
-**Alertes** :
-- hors seuil min / max → alerte affichée, vanne fermée, **pas d'email** ;
-- au-delà du **seuil critique** → l'alerte passe en « critique » et un email est envoyé aux
-  responsables du site (destinataires configurés + utilisateurs rattachés au site).
-  Sans seuil critique configuré, l'email part dès le seuil min / max ;
-- un capteur qui n'envoie plus de mesure pendant plus de son **délai de défaillance**
-  (en secondes, réglable par capteur) est déclaré défectueux et les responsables du site
-  sont prévenus par email. Cette alerte ne ferme pas la vanne et se résout dès la mesure suivante.
+Un utilisateur appartient à **un ou plusieurs sites**, et un site a **plusieurs
+utilisateurs** (y compris plusieurs administrateurs). Chacun ne voit que les sites qui lui
+sont attribués : tableau de bord, historique, alertes, paramètres et liste des comptes.
+
+| Action | Super administrateur | Administrateur | Responsable CAEPA |
+|---|:---:|:---:|:---:|
+| Consulter les données de ses sites | ✅ (tous les sites) | ✅ | ✅ |
+| Créer un site | ✅ | ❌ | ❌ |
+| **Attribuer / retirer des sites** à un compte | ✅ | ❌ | ❌ |
+| Ajouter un administrateur | ✅ (sur les sites choisis) | ✅ (sur son site) | ❌ |
+| Ajouter un responsable CAEPA | ✅ (sur les sites choisis) | ✅ (sur son site) | ❌ |
+| Nommer un super administrateur | ✅ | ❌ | ❌ |
+| Capteurs, seuils, destinataires email | ✅ | ✅ (ses sites) | ❌ |
+
+Précisions :
+- Le **super administrateur** attribue les sites depuis la page « Utilisateurs » : une liste
+  déroulante « Choisir un site à attribuer » ajoute un site, le **×** le retire.
+- Un compte créé par un **administrateur** est rattaché **automatiquement à son site**
+  (le site sélectionné dans la barre latérale s'il en gère plusieurs). Seul le super
+  administrateur peut ensuite l'ajouter à d'autres sites.
+- Un administrateur ne peut modifier, changer le rôle ou supprimer un compte que si
+  **tous** les sites de ce compte sont les siens, et il ne peut jamais toucher à un super
+  administrateur.
+- Au premier démarrage après la mise à jour, si aucun super administrateur n'existe, le
+  plus ancien administrateur est promu automatiquement (voir
+  `backend/services/migration.service.js`).
+
+### Alertes et notifications
+
+- **Hors seuil min / max** → alerte « avertissement » affichée, vanne fermée, **pas d'email**.
+- **Au-delà du seuil critique** → l'alerte passe en « critique » et un email est envoyé une
+  seule fois aux responsables du site (destinataires configurés dans « Paramètres » +
+  utilisateurs rattachés au site). Sans seuil critique configuré, l'email part dès le seuil
+  min / max. Les seuils critiques doivent être au-delà de la plage normale.
+- **Capteur qui ne répond plus** : si un capteur n'envoie aucune mesure pendant plus de son
+  **délai sans mesure** (en secondes, minimum 10, réglable par capteur dans « Paramètres »),
+  il est déclaré défectueux, une alerte est créée et les responsables du site sont prévenus
+  par email. Cette alerte ne ferme pas la vanne et se résout dès la mesure suivante.
+
+Variables d'environnement associées (`backend/.env`, facultatives) :
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `DELAI_DEFAILLANCE_DEFAUT_S` | `300` | Délai sans mesure par défaut pour un nouveau capteur (secondes) |
+| `SURVEILLANCE_INTERVALLE_MS` | `15000` | Fréquence de vérification des capteurs défaillants |
+
+Avec Docker, les emails envoyés sont visibles dans Mailpit : http://localhost:8025.
+
+### Gestion des sites
 
 **Changer de site** : le sélecteur en bas de la barre latérale liste les sites
 qui te sont attribués — un simple clic change instantanément toutes les données affichées.
@@ -361,16 +411,21 @@ qui te sont attribués — un simple clic change instantanément toutes les donn
 sélecteur, qui ouvre un petit formulaire (nom + localisation optionnelle).
 
 **Rattacher des capteurs à un nouveau site** : après création d'un site, ses capteurs
-ne sont pas créés automatiquement. Utilise `POST /api/sensors` avec le `site_id` du
-nouveau site (visible dans `GET /api/sites`), par exemple :
+ne sont pas créés automatiquement. Le plus simple : sélectionne le site dans la barre
+latérale, puis « Paramètres » → « + Ajouter un capteur ». Par l'API, utilise
+`POST /api/sensors` avec le `site_id` du nouveau site (visible dans `GET /api/sites`,
+qui exige d'être connecté), par exemple :
 
 ```bash
 # Remplace le port : 3002 avec Docker (Option A), 3000 sans Docker (Option B)
 curl -X POST http://localhost:3002/api/sensors \
   -H "Authorization: Bearer <jeton_admin>" \
   -H "Content-Type: application/json" \
-  -d '{"site_id":"<id_du_nouveau_site>","type":"pH","modele":"DFRobot Pro V2","unite":"pH","canal_adc":0}'
+  -d '{"site_id":"<id_du_nouveau_site>","type":"pH","modele":"DFRobot Pro V2","unite":"pH","broche":"A2","delaiDefaillanceSecondes":300}'
 ```
+
+Le jeton s'obtient avec `POST /api/auth/login` (`{"email": "...", "motDePasse": "..."}`),
+avec un compte super administrateur ou administrateur de ce site.
 
 Ou plus simplement, adapte `backend/scripts/seed.js` (variable `NOM_SITE_DEFAUT`) et
 relance `npm run seed` pour créer un jeu complet de capteurs sur un nouveau site.

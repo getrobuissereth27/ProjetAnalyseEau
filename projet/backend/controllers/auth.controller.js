@@ -42,6 +42,14 @@ exports.connexion = async (req, res) => {
 };
 
 // GET /api/auth/me (nécessite un jeton valide, voir middleware)
+// Renvoie le profil ACTUEL (rôle et sites relus en base) : l'interface s'en sert
+// pour se mettre à jour si le rôle ou les sites ont changé depuis la connexion.
 exports.profil = async (req, res) => {
-  res.json(req.utilisateur);
+  try {
+    const u = await Utilisateur.findById(req.utilisateur.id).select('nom email role sites');
+    if (!u) return res.status(401).json({ erreur: 'Compte introuvable' });
+    res.json({ id: u._id, nom: u.nom, email: u.email, role: u.role, sites: u.sites || [] });
+  } catch (err) {
+    res.status(500).json({ erreur: err.message });
+  }
 };

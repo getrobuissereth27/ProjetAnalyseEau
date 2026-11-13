@@ -105,7 +105,12 @@ export default function Historique() {
 
     setSuppressionEnCours(true);
     try {
-      await client.delete('/api/measurements', { data: { ids } });
+      // Envoi par paquets : une grosse sélection (des milliers de mesures, jusqu'à 4
+      // par ligne) dépasserait la taille maximale d'une requête acceptée par l'API.
+      const TAILLE_PAQUET = 500;
+      for (let i = 0; i < ids.length; i += TAILLE_PAQUET) {
+        await client.delete('/api/measurements', { data: { ids: ids.slice(i, i + TAILLE_PAQUET) } });
+      }
       setSelectionnees((prev) => {
         const suivant = new Set(prev);
         timestamps.forEach((t) => suivant.delete(t));
@@ -113,7 +118,9 @@ export default function Historique() {
       });
       setVersionRafraichissement((v) => v + 1);
     } catch (err) {
-      setErreur("Impossible de supprimer ces mesures.");
+      setErreur(err.response?.data?.erreur || "Impossible de supprimer ces mesures.");
+      // Une partie a pu être supprimée avant l'erreur : on rafraîchit le tableau.
+      setVersionRafraichissement((v) => v + 1);
     } finally {
       setSuppressionEnCours(false);
     }

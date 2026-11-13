@@ -22,6 +22,8 @@ export default function Alertes() {
   const [alerteSelectionnee, setAlerteSelectionnee] = useState(null);
   const [telechargementEnCours, setTelechargementEnCours] = useState(false);
   const [selectionnees, setSelectionnees] = useState(new Set());
+  // true = « toutes les alertes du filtre actuel, sur toutes les pages » (pas seulement la page affichée)
+  const [toutesLesPages, setToutesLesPages] = useState(false);
   const [suppressionEnCours, setSuppressionEnCours] = useState(false);
   const [versionRafraichissement, setVersionRafraichissement] = useState(0);
   const LIMITE = 15;
@@ -38,6 +40,12 @@ export default function Alertes() {
     client.get(`/api/thresholds?site=${siteActifId}`).then((res) => setSeuils(res.data)).catch(() => {});
     client.get(`/api/valve/state?site=${siteActifId}`).then((res) => setVanneActuelle(res.data)).catch(() => {});
   }, [page, filtreStatut, siteActifId, versionRafraichissement]);
+
+  // Changer de site ou de filtre annule la sélection (elle ne correspondrait plus à ce qui est affiché)
+  useEffect(() => {
+    setSelectionnees(new Set());
+    setToutesLesPages(false);
+  }, [filtreStatut, siteActifId]);
 
   const changerFiltre = (statut) => {
     setFiltreStatut(statut);
@@ -63,6 +71,7 @@ export default function Alertes() {
   };
 
   const basculerSelection = (id) => {
+    setToutesLesPages(false); // décocher / cocher une ligne revient à une sélection manuelle
     setSelectionnees((prev) => {
       const suivant = new Set(prev);
       if (suivant.has(id)) suivant.delete(id); else suivant.add(id);
@@ -71,29 +80,49 @@ export default function Alertes() {
   };
 
   const toutSelectionner = (e) => {
+    setToutesLesPages(false);
     setSelectionnees(e.target.checked ? new Set(donnees.resultats.map((a) => a._id)) : new Set());
   };
 
-  const supprimerAlertes = async (ids) => {
-    if (ids.length === 0) return;
+  const pageEntiereSelectionnee = donnees.resultats.length > 0
+    && donnees.resultats.every((a) => selectionnees.has(a._id));
+  const nbSelectionnees = toutesLesPages ? donnees.total : selectionnees.size;
+
+  const libelleFiltre = { active: 'actives', resolue: 'résolues' }[filtreStatut];
+
+  const supprimerAlertes = async (ids, tout = false) => {
+    const nb = tout ? donnees.total : ids.length;
+    if (nb === 0) return;
     const ok = await confirmer({
-      titre: ids.length > 1 ? `Supprimer ${ids.length} alertes ?` : 'Supprimer cette alerte ?',
-      message: 'Suppression définitive. Cette action est irréversible.',
+      titre: nb > 1 ? `Supprimer ${nb} alertes ?` : 'Supprimer cette alerte ?',
+      message: tout
+        ? `Toutes les alertes${libelleFiltre ? ` ${libelleFiltre}` : ''} de ce site, sur toutes les pages, seront supprimées.\n\nSuppression définitive. Cette action est irréversible.`
+        : 'Suppression définitive. Cette action est irréversible.',
       texteConfirmer: 'Supprimer',
     });
     if (!ok) return;
 
     setSuppressionEnCours(true);
     try {
-      if (ids.length === 1) {
+      if (tout) {
+        // Suppression faite côté serveur à partir du filtre : aucune liste d'identifiants à envoyer
+        await client.delete('/api/alerts', { data: { tout: true, site: siteActifId, statut: filtreStatut || undefined } });
+        setPage(1);
+      } else if (ids.length === 1) {
         await client.delete(`/api/alerts/${ids[0]}`);
       } else {
-        await client.delete('/api/alerts', { data: { ids } });
+        // Envoi par paquets, pour ne jamais dépasser la taille maximale d'une requête
+        const TAILLE_PAQUET = 500;
+        for (let i = 0; i < ids.length; i += TAILLE_PAQUET) {
+          await client.delete('/api/alerts', { data: { ids: ids.slice(i, i + TAILLE_PAQUET) } });
+        }
       }
       setSelectionnees(new Set());
+      setToutesLesPages(false);
       setVersionRafraichissement((v) => v + 1);
     } catch (err) {
-      setErreur("Impossible de supprimer ces alertes.");
+      setErreur(err.response?.data?.erreur || "Impossible de supprimer ces alertes.");
+      setVersionRafraichissement((v) => v + 1);
     } finally {
       setSuppressionEnCours(false);
     }
@@ -133,23 +162,44 @@ export default function Alertes() {
               <label style={styles.labelToutSelectionner}>
                 <input
                   type="checkbox"
-                  checked={selectionnees.size > 0 && selectionnees.size === donnees.resultats.length}
+                  checked={toutesLesPages || pageEntiereSelectionnee}
                   onChange={toutSelectionner}
                 />
                 Tout sélectionner
               </label>
             )}
-            {estAdmin && selectionnees.size > 0 && (
+            {estAdmin && nbSelectionnees > 0 && (
               <button
                 style={styles.btnDanger}
-                onClick={() => supprimerAlertes([...selectionnees])}
+                onClick={() => supprimerAlertes([...selectionnees], toutesLesPages)}
                 disabled={suppressionEnCours}
               >
-                {suppressionEnCours ? 'Suppression…' : `🗑 Supprimer la sélection (${selectionnees.size})`}
+                {suppressionEnCours ? 'Suppression…' : `🗑 Supprimer la sélection (${nbSelectionnees})`}
               </button>
             )}
           </div>
         </div>
+
+        {/* Comme dans une messagerie : après « Tout sélectionner », proposer d'étendre à toutes les pages */}
+        {estAdmin && pageEntiereSelectionnee && donnees.total > donnees.resultats.length && (
+          <div style={styles.bandeauSelection}>
+            {toutesLesPages ? (
+              <>
+                Les <strong>{donnees.total}</strong> alertes{libelleFiltre ? ` ${libelleFiltre}` : ''} de ce site sont sélectionnées (toutes les pages).{' '}
+                <button style={styles.lienSelection} onClick={() => { setToutesLesPages(false); setSelectionnees(new Set()); }}>
+                  Annuler la sélection
+                </button>
+              </>
+            ) : (
+              <>
+                Les <strong>{donnees.resultats.length}</strong> alertes de cette page sont sélectionnées.{' '}
+                <button style={styles.lienSelection} onClick={() => setToutesLesPages(true)}>
+                  Sélectionner les {donnees.total} alertes{libelleFiltre ? ` ${libelleFiltre}` : ''}
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {donnees.resultats.length === 0 && <p className="chargement">Aucune alerte à afficher.</p>}
         {donnees.resultats.map((a) => (
@@ -162,7 +212,7 @@ export default function Alertes() {
             {estAdmin && (
               <input
                 type="checkbox"
-                checked={selectionnees.has(a._id)}
+                checked={toutesLesPages || selectionnees.has(a._id)}
                 onChange={() => basculerSelection(a._id)}
                 onClick={(e) => e.stopPropagation()}
                 style={{ marginRight: 4 }}
@@ -235,6 +285,8 @@ const styles = {
   btnSecondaire: { fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 999, border: '1px solid #E2E8F0', background: 'white', color: '#334155', cursor: 'pointer' },
   btnDanger: { fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 999, border: 'none', background: '#B91C1C', color: 'white', cursor: 'pointer' },
   btnSupprLigne: { fontSize: 13, padding: '4px 8px', borderRadius: 6, border: '1px solid #E2E8F0', background: 'white', cursor: 'pointer', marginLeft: 8 },
+  bandeauSelection: { background: '#F1F5F9', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#334155', textAlign: 'center', marginBottom: 10 },
+  lienSelection: { border: 'none', background: 'transparent', color: '#0F766E', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', padding: 0 },
   labelToutSelectionner: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#334155', cursor: 'pointer' },
   chevron: { fontSize: 18, color: '#CBD5E1', marginLeft: 4 },
   pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 18, paddingTop: 14, borderTop: '1px solid #E2E8F0' },

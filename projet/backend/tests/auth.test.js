@@ -100,3 +100,18 @@ test('PUT /api/thresholds/:id autorise un rôle administrateur', async () => {
   expect(res.status).toBe(200);
   expect(res.body.valeur_min).toBe(6);
 });
+
+test('GET /api/auth/me renvoie le rôle ACTUEL, même s\'il a changé depuis la connexion', async () => {
+  const u = await creerUtilisateur('administrateur');
+  const connexion = await request(app)
+    .post('/api/auth/login')
+    .send({ email: 'administrateur@test.local', motDePasse: 'motdepasse123' });
+
+  await Utilisateur.updateOne({ _id: u._id }, { role: 'communautaire' });
+
+  const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${connexion.body.jeton}`);
+  expect(res.status).toBe(200);
+  expect(res.body.role).toBe('communautaire');
+  expect(res.body.email).toBe('administrateur@test.local');
+  expect(res.body.sites.map(String)).toEqual([siteTest._id.toString()]);
+});

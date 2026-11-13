@@ -8,25 +8,47 @@ const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Règles de gestion des comptes :
 // - le superadmin gère tous les comptes, tous les rôles et tous les sites ;
-// - un administrateur ne gère que les responsables (rôle communautaire) rattachés
-//   à au moins un de SES sites, et ne peut leur attribuer que ses propres sites.
+//   c'est lui qui crée les sites et y nomme les premiers administrateurs.
+// - SEUL le superadmin attribue ou retire des sites à un compte.
+// - un administrateur peut ajouter des responsables communautaires ET d'autres
+//   administrateurs : le nouveau compte est rattaché automatiquement au site de
+//   l'administrateur (celui qu'il a sélectionné s'il en gère plusieurs).
+//   Sur un compte existant, il a le contrôle complet (nom/email, rôle,
+//   suppression) uniquement si TOUS les sites de ce compte font partie des siens.
+// - personne d'autre que le superadmin ne touche à un compte superadmin.
+const ROLES_ATTRIBUABLES_PAR_ADMIN = ['communautaire', 'administrateur'];
 
 function idsSites(liste) {
   return (liste || []).map((s) => (s._id || s).toString());
 }
 
-// Un administrateur peut-il gérer ce compte ?
-function peutGerer(moi, cible) {
+// Peut-il attribuer / retirer des sites à ce compte ? Réservé au superadmin.
+function peutGererSites(moi, cible) {
+  return estSuperAdmin(moi) && cible.role !== 'superadmin';
+}
+
+// A-t-il le contrôle complet de ce compte (modifier, changer le rôle, supprimer) ?
+function controleComplet(moi, cible) {
   if (estSuperAdmin(moi)) return true;
-  if (cible.role !== 'communautaire') return false;
-  return idsSites(cible.sites).some((s) => moi.sites.includes(s));
+  if (cible.role === 'superadmin' || cible._id.toString() === moi.id) return false;
+  const sites = idsSites(cible.sites);
+  return sites.length > 0 && sites.every((s) => moi.sites.includes(s));
 }
 
 // Ce que l'appelant a le droit de voir d'un compte : un administrateur ne voit
-// que les sites qu'il partage avec ce compte.
+// que les sites qu'il partage avec ce compte. Les droits calculés sont joints
+// pour que l'interface n'affiche que les actions autorisées.
 function vueUtilisateur(moi, u) {
   const obj = u.toObject ? u.toObject() : { ...u };
   delete obj.motDePasseHash;
+  const complet = controleComplet(moi, u);
+  obj.droits = {
+    modifier: complet || u._id.toString() === moi.id,
+    supprimer: complet && u._id.toString() !== moi.id,
+    role: complet && u._id.toString() !== moi.id,
+    sites: peutGererSites(moi, u),
+    autresSites: !estSuperAdmin(moi) && idsSites(u.sites).some((s) => !moi.sites.includes(s)),
+  };
   if (!estSuperAdmin(moi)) obj.sites = idsSites(obj.sites).filter((s) => moi.sites.includes(s));
   else obj.sites = idsSites(obj.sites);
   return obj;
@@ -65,7 +87,8 @@ exports.listerUtilisateurs = async (req, res) => {
 exports.creerUtilisateur = async (req, res) => {
   try {
     const moi = req.utilisateur;
-    const { nom, email, motDePasse, role = 'communautaire', sites = [] } = req.body;
+    const { nom, email, motDePasse, role = 'communautaire' } = req.body;
+    let { sites = [] } = req.body;
     if (!nom || !email || !motDePasse) {
       return res.status(400).json({ erreur: 'nom, email et motDePasse sont requis' });
     }
@@ -78,8 +101,21 @@ exports.creerUtilisateur = async (req, res) => {
     if (!Utilisateur.ROLES.includes(role)) {
       return res.status(400).json({ erreur: 'Rôle invalide' });
     }
-    if (!estSuperAdmin(moi) && role !== 'communautaire') {
-      return res.status(403).json({ erreur: 'Seul le superadmin peut créer un administrateur' });
+    if (!estSuperAdmin(moi) && !ROLES_ATTRIBUABLES_PAR_ADMIN.includes(role)) {
+      return res.status(403).json({ erreur: 'Seul le superadmin peut créer un superadmin' });
+    }
+    // Un administrateur n'attribue pas de sites : le compte rejoint SON site.
+    // S'il en gère plusieurs, l'interface envoie le site sélectionné (un seul).
+    if (!estSuperAdmin(moi)) {
+      if (!Array.isArray(sites) || sites.length === 0) {
+        if (moi.sites.length !== 1) {
+          return res.status(400).json({ erreur: 'Indique le site auquel rattacher ce compte' });
+        }
+        sites = [moi.sites[0]];
+      }
+      if (sites.length !== 1) {
+        return res.status(403).json({ erreur: "Seul le super administrateur peut attribuer plusieurs sites" });
+      }
     }
 
     const verif = await validerSites(moi, sites);
@@ -108,15 +144,14 @@ exports.creerUtilisateur = async (req, res) => {
   }
 };
 
-// PATCH /api/users/:id/sites   body: { sites: [...] }
-// Superadmin : remplace la liste complète. Administrateur : ne modifie que la
-// partie de la liste qui concerne ses propres sites (les autres sont conservés).
+// PATCH /api/users/:id/sites   body: { sites: [...] }   (superadmin uniquement)
+// Remplace la liste complète des sites du compte.
 exports.attribuerSites = async (req, res) => {
   try {
     const moi = req.utilisateur;
     const cible = await Utilisateur.findById(req.params.id);
     if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
-    if (!peutGerer(moi, cible)) return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
+    if (!peutGererSites(moi, cible)) return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
     if (cible.role === 'superadmin') {
       return res.status(400).json({ erreur: 'Le superadmin a déjà accès à tous les sites' });
     }
@@ -124,11 +159,7 @@ exports.attribuerSites = async (req, res) => {
     const verif = await validerSites(moi, req.body.sites);
     if (verif.erreur) return res.status(verif.statut || 400).json({ erreur: verif.erreur });
 
-    let nouveaux = verif.ids;
-    if (!estSuperAdmin(moi)) {
-      const horsPerimetre = idsSites(cible.sites).filter((s) => !moi.sites.includes(s));
-      nouveaux = [...horsPerimetre, ...verif.ids];
-    }
+    const nouveaux = verif.ids;
     if (nouveaux.length === 0) {
       return res.status(400).json({ erreur: 'Un compte doit appartenir à au moins un site' });
     }
@@ -198,7 +229,7 @@ exports.modifierUtilisateur = async (req, res) => {
     const moi = req.utilisateur;
     const cible = await Utilisateur.findById(req.params.id);
     if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
-    if (cible._id.toString() !== moi.id && !peutGerer(moi, cible)) {
+    if (cible._id.toString() !== moi.id && !controleComplet(moi, cible)) {
       return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
     }
 
@@ -221,20 +252,32 @@ exports.modifierUtilisateur = async (req, res) => {
   }
 };
 
-// PATCH /api/users/:id/role   body: { role }   (superadmin uniquement)
+// PATCH /api/users/:id/role   body: { role }
+// Superadmin : tous les rôles. Administrateur : communautaire ⇄ administrateur,
+// uniquement sur les comptes dont il a le contrôle complet.
 exports.changerRole = async (req, res) => {
   try {
+    const moi = req.utilisateur;
     const { role } = req.body;
     if (!Utilisateur.ROLES.includes(role)) {
       return res.status(400).json({ erreur: 'Rôle invalide' });
     }
-    // Empêche de se retirer soi-même le rôle superadmin par erreur (perte de l'accès à la gestion des sites)
-    if (req.params.id === req.utilisateur.id && role !== 'superadmin') {
-      return res.status(400).json({ erreur: 'Tu ne peux pas retirer ton propre rôle superadmin' });
+    if (req.params.id === moi.id) {
+      return res.status(400).json({ erreur: 'Tu ne peux pas changer ton propre rôle' });
+    }
+    if (!estSuperAdmin(moi) && !ROLES_ATTRIBUABLES_PAR_ADMIN.includes(role)) {
+      return res.status(403).json({ erreur: 'Seul le superadmin peut nommer un superadmin' });
     }
 
     const cible = await Utilisateur.findById(req.params.id);
     if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
+    if (!controleComplet(moi, cible)) {
+      return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
+    }
+    if (cible.role === 'superadmin' && role !== 'superadmin') {
+      const nb = await Utilisateur.countDocuments({ role: 'superadmin' });
+      if (nb <= 1) return res.status(400).json({ erreur: 'Impossible de rétrograder le dernier superadmin' });
+    }
     if (role !== 'superadmin' && cible.role !== 'superadmin' && cible.sites.length === 0) {
       return res.status(400).json({ erreur: "Attribue d'abord au moins un site à ce compte" });
     }
@@ -256,8 +299,10 @@ exports.supprimerUtilisateur = async (req, res) => {
 
     const cible = await Utilisateur.findById(req.params.id);
     if (!cible) return res.status(404).json({ erreur: 'Utilisateur introuvable' });
-    if (!peutGerer(req.utilisateur, cible)) {
-      return res.status(403).json({ erreur: "Tu n'as pas les droits sur ce compte" });
+    if (!controleComplet(req.utilisateur, cible)) {
+      return res.status(403).json({
+        erreur: "Ce compte appartient aussi à des sites que tu ne gères pas : demande au super administrateur",
+      });
     }
 
     if (cible.role === 'superadmin') {

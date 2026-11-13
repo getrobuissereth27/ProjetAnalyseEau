@@ -6,11 +6,12 @@ import { useSite } from '../sites/SiteContext';
 import { useConfirmer } from '../confirm/ConfirmContext';
 import { LIBELLES_ROLE, estSuperAdmin } from '../utils/roles';
 
-// Le superadmin gère tous les comptes et attribue les sites aux administrateurs.
-// Un administrateur gère les responsables (CAEPA) de ses propres sites.
+// Le superadmin gère tous les comptes, crée les sites et y nomme les administrateurs.
+// Un administrateur ajoute des responsables (CAEPA) ou d'autres administrateurs sur
+// ses propres sites. Les actions possibles sur chaque compte viennent de l'API (u.droits).
 export default function Utilisateurs() {
   const { utilisateur: moi, mettreAJourUtilisateur } = useAuth();
-  const { sites } = useSite(); // sites accessibles à l'utilisateur connecté (tous pour le superadmin)
+  const { sites, siteActifId } = useSite(); // sites accessibles à l'utilisateur connecté (tous pour le superadmin)
   const superAdmin = estSuperAdmin(moi);
   const confirmer = useConfirmer();
   const [utilisateurs, setUtilisateurs] = useState([]);
@@ -48,8 +49,11 @@ export default function Utilisateurs() {
 
   useEffect(charger, []);
 
-  // Un administrateur ne gère que les responsables ; le superadmin gère tout le monde.
-  const peutGerer = (u) => superAdmin || u.role === 'communautaire';
+  // Rôles proposés : le superadmin peut tout attribuer, un administrateur
+  // seulement « Responsable CAEPA » ou « Administrateur ».
+  const rolesProposes = superAdmin
+    ? ['communautaire', 'administrateur', 'superadmin']
+    : ['communautaire', 'administrateur'];
 
   const basculer = (liste, setListe, id) => {
     setListe(liste.includes(id) ? liste.filter((x) => x !== id) : [...liste, id]);
@@ -58,13 +62,16 @@ export default function Utilisateurs() {
   const ajouterUtilisateur = async (e) => {
     e.preventDefault();
     setErreurAjout(null);
-    if (role !== 'superadmin' && sitesNouveau.length === 0) {
-      setErreurAjout('Coche au moins un site pour ce compte.');
+    // Seul le superadmin choisit les sites ; le compte créé par un administrateur
+    // rejoint automatiquement le site actuellement sélectionné.
+    const sitesAEnvoyer = superAdmin ? sitesNouveau : (siteActifId ? [siteActifId] : []);
+    if (role !== 'superadmin' && sitesAEnvoyer.length === 0) {
+      setErreurAjout(superAdmin ? 'Choisis au moins un site pour ce compte.' : 'Aucun site sélectionné.');
       return;
     }
     setAjoutEnCours(true);
     try {
-      await client.post('/api/users', { nom, email, motDePasse, role, sites: sitesNouveau });
+      await client.post('/api/users', { nom, email, motDePasse, role, sites: sitesAEnvoyer });
       setNom(''); setEmail(''); setMotDePasse(''); setRole('communautaire'); setSitesNouveau([]);
       setFormOuvert(false);
       charger();
@@ -148,28 +155,50 @@ export default function Utilisateurs() {
     }
   };
 
-  const casesSites = (selection, setSelection) => (
-    <div style={styles.listeSites}>
-      {sites.length === 0 && <span style={styles.aucunSite}>Aucun site disponible</span>}
-      {sites.map((s) => (
-        <label key={s._id} style={styles.caseSite}>
-          <input
-            type="checkbox"
-            checked={selection.includes(s._id)}
-            onChange={() => basculer(selection, setSelection, s._id)}
-          />
-          {s.nom}
-        </label>
-      ))}
-    </div>
-  );
+  // Attribution des sites : une liste déroulante pour choisir le site à ajouter,
+  // et les sites déjà attribués sous forme d'étiquettes retirables (×).
+  const casesSites = (selection, setSelection) => {
+    const disponibles = sites.filter((s) => !selection.includes(s._id));
+    return (
+      <div>
+        <select
+          style={styles.selectSite}
+          value=""
+          onChange={(e) => { if (e.target.value) setSelection([...selection, e.target.value]); }}
+          disabled={disponibles.length === 0}
+        >
+          <option value="">
+            {sites.length === 0
+              ? 'Aucun site disponible'
+              : disponibles.length === 0 ? 'Tous les sites sont attribués' : '— Choisir un site à attribuer —'}
+          </option>
+          {disponibles.map((s) => <option key={s._id} value={s._id}>{s.nom}</option>)}
+        </select>
+        <div style={{ ...styles.listeSites, marginTop: selection.length ? 8 : 0 }}>
+          {selection.map((id) => (
+            <span key={id} style={styles.puceSite}>
+              {nomSite(id)}
+              <button
+                type="button"
+                style={styles.boutonRetirer}
+                onClick={() => basculer(selection, setSelection, id)}
+                title="Retirer ce site"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Layout
       titre="Utilisateurs et sites"
       sousTitre={superAdmin
         ? 'Gestion des comptes et attribution des sites aux administrateurs'
-        : 'Gestion des responsables de tes sites'}
+        : 'Gestion des administrateurs et responsables de tes sites'}
     >
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}
 
@@ -201,18 +230,17 @@ export default function Utilisateurs() {
               </div>
               <div style={{ width: 220 }}>
                 <label style={styles.label}>Rôle</label>
-                {superAdmin ? (
-                  <select style={styles.champForm} value={role} onChange={(e) => setRole(e.target.value)}>
-                    <option value="communautaire">{LIBELLES_ROLE.communautaire}</option>
-                    <option value="administrateur">{LIBELLES_ROLE.administrateur}</option>
-                    <option value="superadmin">{LIBELLES_ROLE.superadmin}</option>
-                  </select>
-                ) : (
-                  <input style={styles.champForm} value={LIBELLES_ROLE.communautaire} disabled />
-                )}
+                <select style={styles.champForm} value={role} onChange={(e) => setRole(e.target.value)}>
+                  {rolesProposes.map((r) => <option key={r} value={r}>{LIBELLES_ROLE[r]}</option>)}
+                </select>
               </div>
             </div>
-            {role !== 'superadmin' ? (
+            {!superAdmin ? (
+              <p style={styles.infoSite}>
+                Ce compte sera rattaché automatiquement à ton site : <strong>{nomSite(siteActifId)}</strong>.
+                Seul le super administrateur peut l'attribuer à d'autres sites.
+              </p>
+            ) : role !== 'superadmin' ? (
               <div style={{ marginBottom: 14 }}>
                 <label style={styles.label}>Sites attribués *</label>
                 {casesSites(sitesNouveau, setSitesNouveau)}
@@ -247,7 +275,7 @@ export default function Utilisateurs() {
               <tbody>
                 {utilisateurs.map((u) => {
                   const cestMoi = u._id === moi?.id;
-                  const gerable = peutGerer(u);
+                  const droits = u.droits || {};
                   return (
                     <tr key={u._id} style={{ borderTop: '1px solid #E2E8F0', verticalAlign: 'top' }}>
                       <td style={{ padding: '14px 8px 14px 0', fontWeight: 700, fontSize: 13.5 }}>
@@ -280,17 +308,13 @@ export default function Utilisateurs() {
                         ) : u.email}
                       </td>
                       <td style={{ padding: '14px 8px 14px 0' }}>
-                        {superAdmin ? (
+                        {droits.role && rolesProposes.includes(u.role) ? (
                           <select
                             style={styles.selectRole}
                             value={u.role}
                             onChange={(e) => changerRole(u._id, e.target.value)}
-                            disabled={cestMoi}
-                            title={cestMoi ? 'Tu ne peux pas changer ton propre rôle' : ''}
                           >
-                            <option value="communautaire">{LIBELLES_ROLE.communautaire}</option>
-                            <option value="administrateur">{LIBELLES_ROLE.administrateur}</option>
-                            <option value="superadmin">{LIBELLES_ROLE.superadmin}</option>
+                            {rolesProposes.map((r) => <option key={r} value={r}>{LIBELLES_ROLE[r]}</option>)}
                           </select>
                         ) : (
                           <span style={styles.texteRole}>{LIBELLES_ROLE[u.role] || u.role}</span>
@@ -312,7 +336,12 @@ export default function Utilisateurs() {
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                             {(u.sites || []).length === 0 && <span style={styles.aucunSite}>Aucun site</span>}
                             {(u.sites || []).map((id) => <span key={id} style={styles.puceSite}>{nomSite(id)}</span>)}
-                            {gerable && !cestMoi && (
+                            {droits.autresSites && (
+                              <span style={styles.aucunSite} title="Ce compte appartient aussi à des sites que tu n'administres pas">
+                                + autres sites
+                              </span>
+                            )}
+                            {droits.sites && (
                               <button style={styles.boutonLien} onClick={() => commencerEditionSites(u)}>
                                 Modifier
                               </button>
@@ -330,12 +359,12 @@ export default function Utilisateurs() {
                           </>
                         ) : (
                           <>
-                            {(gerable || cestMoi) && (
+                            {droits.modifier && (
                               <button style={styles.boutonModifier} onClick={() => commencerEdition(u)}>
                                 Modifier
                               </button>
                             )}{' '}
-                            {gerable && !cestMoi && (
+                            {droits.supprimer && (
                               <button style={styles.boutonSuppr} onClick={() => supprimer(u._id, u.nom)}>
                                 Supprimer
                               </button>
@@ -369,8 +398,10 @@ const styles = {
   puceMoi: { fontSize: 10, fontWeight: 700, color: '#0F766E', background: '#CCFBF1', padding: '2px 7px', borderRadius: 999, marginLeft: 6 },
   puceSite: { fontSize: 11, fontWeight: 600, color: '#0F766E', background: '#F0FDFA', border: '1px solid #CCFBF1', padding: '2px 8px', borderRadius: 999 },
   aucunSite: { fontSize: 11.5, color: '#94A3B8', fontStyle: 'italic' },
+  infoSite: { fontSize: 12.5, color: '#0F766E', background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 8, padding: '8px 12px', margin: '0 0 14px', lineHeight: 1.5 },
   listeSites: { display: 'flex', flexWrap: 'wrap', gap: '6px 14px' },
-  caseSite: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: '#334155', cursor: 'pointer' },
+  selectSite: { fontSize: 12.5, padding: '6px 8px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155', minWidth: 220, maxWidth: '100%' },
+  boutonRetirer: { marginLeft: 6, border: 'none', background: 'transparent', color: '#0F766E', fontWeight: 700, fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: 0 },
   boutonModifier: { fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155', cursor: 'pointer' },
   boutonLien: { fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, border: '1px dashed #CBD5E1', background: 'white', color: '#475569', cursor: 'pointer' },
   champEdition: { fontSize: 13, padding: '5px 8px', border: '1px solid #0F766E', borderRadius: 6, width: '100%', minWidth: 160, boxSizing: 'border-box' },

@@ -34,7 +34,7 @@ export function exporterExcelGenerique(entetes, rangs, nomFichier, nomFeuille, l
 
 // ---------- Export de l'historique des mesures ----------
 
-const ENTETES_HISTORIQUE = ['Date / heure', 'pH', 'Turbidité (NTU)', 'Température (°C)', 'Conductivité (ppm)'];
+const ENTETES_HISTORIQUE = ['Date / heure', 'pH', 'Turbidité (NTU)', 'Température (°C)', 'TDS (ppm)'];
 const LARGEURS_HISTORIQUE = [20, 8, 16, 16, 18];
 
 function ligneHistoriqueVersTableau(ligne) {

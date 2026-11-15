@@ -130,7 +130,7 @@ export default function Alertes() {
 
   return (
     <Layout titre="Alertes" sousTitre={`${donnees.total} alerte(s) au total`}>
-      {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}
+      {erreur && <div className="erreur-connexion"> {erreur}</div>}
 
       <div className="panel">
         <div className="panel-header" style={{ flexWrap: 'wrap', gap: 10 }}>

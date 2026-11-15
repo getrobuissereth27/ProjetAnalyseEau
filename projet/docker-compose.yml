@@ -63,6 +63,10 @@ services:
       # Réseau interne Docker : nom du service + port interne (pas 3002)
       API_URL: http://backend:3000
       INTERVALLE_SECONDES: 10
+      # Chance par cycle de simuler un pic critique (alerte + email Mailpit),
+      # qui dure DUREE_PIC_CYCLES cycles. 0 pour désactiver.
+      PROBA_PIC_CRITIQUE: "0.05"
+      DUREE_PIC_CYCLES: 3
 
 volumes:
   mongo_data:

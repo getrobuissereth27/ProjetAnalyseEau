@@ -14,7 +14,7 @@ const TYPES_CONNUS = [
   { valeur: 'autre', unite: '', numerique: false },
 ];
 
-const LABELS_TYPE = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'Conductivité' };
+const LABELS_TYPE = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'TDS' };
 const STATUT_INFO = {
   fonctionne: { libelle: 'Fonctionne', couleur: '#15803D', fond: '#DCFCE7' },
   defectueux: { libelle: 'Défectueux', couleur: '#B91C1C', fond: '#FEE2E2' },
@@ -239,7 +239,7 @@ export default function ParametresSeuils() {
                   <option value="pH">pH</option>
                   <option value="turbidite">Turbidité</option>
                   <option value="temperature">Température</option>
-                  <option value="tds">Conductivité (TDS)</option>
+                  <option value="tds">TDS (ppm)</option>
                   <option value="autre">Autre…</option>
                 </select>
               </div>

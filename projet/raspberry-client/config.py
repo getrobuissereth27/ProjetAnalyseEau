@@ -14,7 +14,7 @@ INTERVALLE_SECONDES = int(os.environ.get("INTERVALLE_SECONDES", "10"))
 # sur un ordinateur sans capteurs branchés). False = lit les vrais capteurs
 # (à utiliser sur le Raspberry Pi avec le matériel connecté).
 # Se met automatiquement en simulation si les bibliothèques matérielles
-# (spidev, w1thermsensor...) ne sont pas disponibles - voir capteurs.py.
+# (pyserial, port série de l'Arduino) ne sont pas disponibles - voir arduino.py.
 FORCER_SIMULATION = os.environ.get("SIMULATION", "auto")  # "auto" | "true" | "false"
 
 # Ces identifiants doivent correspondre aux _id MongoDB réels après le "npm run seed"

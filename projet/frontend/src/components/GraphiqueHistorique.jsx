@@ -9,7 +9,7 @@ const SERIES = {
   ph: { libelle: 'pH', unite: '', couleur: '#2563EB' },
   turbidite: { libelle: 'Turbidité', unite: 'NTU', couleur: '#B45309' },
   temperature: { libelle: 'Température', unite: '°C', couleur: '#DC2626' },
-  conductivite: { libelle: 'Conductivité', unite: 'ppm', couleur: '#7C3AED' },
+  conductivite: { libelle: 'TDS', unite: 'ppm', couleur: '#7C3AED' },
 };
 
 const DECIMALES = { ph: 2, turbidite: 0, temperature: 1, conductivite: 0 };

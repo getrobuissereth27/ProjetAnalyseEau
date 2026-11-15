@@ -109,7 +109,7 @@ export default function TableauDeBord() {
             <div className="panel">
               <div className="panel-header">
                 <h2>Évolution sur 7 jours</h2>
-                <span className="tag">pH · Turbidité · Température · Conductivité</span>
+                <span className="tag">pH · Turbidité · Température · TDS</span>
               </div>
               <GraphiqueHistorique
                 capteurPH={capteurPH}

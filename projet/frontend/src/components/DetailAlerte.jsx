@@ -1,6 +1,6 @@
 import { capteurDeLAlerte } from '../utils/roles';
 
-const LABELS = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'Conductivité' };
+const LABELS = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'TDS' };
 
 function plage(min, max) {
   const aMin = min !== null && min !== undefined;

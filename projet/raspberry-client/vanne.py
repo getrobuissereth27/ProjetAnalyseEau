@@ -1,7 +1,7 @@
 """
 Pilotage de la LED qui simule physiquement l'électrovanne.
 
-Comme pour l'ADC (adc.py), le code détecte automatiquement s'il tourne sur un
+Comme pour l'Arduino (arduino.py), le code détecte automatiquement s'il tourne sur un
 vrai Raspberry Pi (bibliothèque RPi.GPIO disponible) ou sur un ordinateur de
 test (bascule alors en simulation, avec un simple message dans le terminal).
 

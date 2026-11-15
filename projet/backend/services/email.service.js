@@ -38,6 +38,10 @@ async function envoyer(destinataires, sujet, texte) {
   }
 }
 
+// Libellés lisibles des types de capteurs (le type en base reste 'tds', 'turbidite'...)
+const LIBELLES = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'TDS' };
+const libelle = (type) => LIBELLES[type] || type;
+
 function plage(min, max, unite) {
   const bas = min ?? '−∞';
   const haut = max ?? '+∞';
@@ -45,7 +49,8 @@ function plage(min, max, unite) {
 }
 
 // Seuil critique dépassé (voir services/analyse.service.js)
-async function envoyerAlerteEmail({ destinataires, type, valeur, unite, seuil, siteNom }) {
+async function envoyerAlerteEmail({ destinataires, type: typeCapteur, valeur, unite, seuil, siteNom }) {
+  const type = libelle(typeCapteur);
   const sujet = `Alerte CRITIQUE qualité de l'eau — ${type} (${siteNom})`;
   const critiqueMin = seuil.critique_min ?? seuil.valeur_min;
   const critiqueMax = seuil.critique_max ?? seuil.valeur_max;
@@ -63,7 +68,8 @@ async function envoyerAlerteEmail({ destinataires, type, valeur, unite, seuil, s
 }
 
 // Capteur qui ne répond plus (voir services/surveillance.service.js)
-async function envoyerAlerteCapteurDefaillant({ destinataires, type, modele, siteNom, dernierBattement, delaiSecondes }) {
+async function envoyerAlerteCapteurDefaillant({ destinataires, type: typeCapteur, modele, siteNom, dernierBattement, delaiSecondes }) {
+  const type = libelle(typeCapteur);
   const sujet = `⚠ Capteur défectueux — ${type} ne répond plus (${siteNom})`;
   const texte = [
     `Le capteur "${type}"${modele ? ` (${modele})` : ''} n'a envoyé aucune mesure depuis plus de ${formaterDuree(delaiSecondes)}.`,

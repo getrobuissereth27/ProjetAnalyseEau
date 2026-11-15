@@ -205,7 +205,7 @@ export default function Historique() {
                     <th style={{ ...styles.enteteCellule, color: '#2563EB' }}>pH</th>
                     <th style={{ ...styles.enteteCellule, color: '#B45309' }}>Turbidité (NTU)</th>
                     <th style={{ ...styles.enteteCellule, color: '#15803D' }}>Température (°C)</th>
-                    <th style={{ ...styles.enteteCellule, color: '#7C3AED' }}>Conductivité (ppm)</th>
+                    <th style={{ ...styles.enteteCellule, color: '#7C3AED' }}>TDS (ppm)</th>
                     {peutGerer && <th style={styles.enteteCellule}></th>}
                   </tr>
                 </thead>

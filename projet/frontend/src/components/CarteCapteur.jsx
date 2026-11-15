@@ -1,4 +1,12 @@
-const LABELS = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'Conductivité' };
+const LABELS = { pH: 'pH', turbidite: 'Turbidité', temperature: 'Température', tds: 'TDS' };
+
+// Définition affichée au survol de l'icône « i » de chaque carte
+const DEFINITIONS = {
+  pH: "Mesure l'acidité ou la basicité de l'eau, sur une échelle de 0 à 14 (7 = neutre). Une eau potable se situe en général entre 6,5 et 8,5.",
+  turbidite: "Trouble de l'eau causé par les particules en suspension (argile, matières organiques, micro-organismes), mesuré en NTU. Une eau trouble désinfecte moins bien.",
+  temperature: "Température de l'eau en °C. Une eau chaude favorise le développement des bactéries et influence la mesure des autres paramètres.",
+  tds: "Total des solides dissous : quantité de sels minéraux et de matières dissoutes dans l'eau, en ppm (mg/L). Une valeur élevée donne un goût salé ou amer.",
+};
 const STATUT_INFO = {
   fonctionne: { libelle: 'En ligne', couleur: '#15803D', fond: '#DCFCE7' },
   defectueux: { libelle: 'Ne répond plus', couleur: '#B91C1C', fond: '#FEE2E2' },
@@ -43,7 +51,17 @@ export default function CarteCapteur({ type, valeur, unite, niveauAlerte, statut
   return (
     <div className="carte">
       <div className="bar" style={{ background: couleurBarre }} />
-      <p className="label">{LABELS[type] || type}</p>
+      <div className="carte-entete">
+        <p className="label">{LABELS[type] || type}</p>
+        {DEFINITIONS[type] && (
+          <span className="info-parametre">
+            <button type="button" className="info-icone" aria-label={`Définition : ${LABELS[type] || type}`} aria-describedby={`def-${type}`}>
+              i
+            </button>
+            <span role="tooltip" id={`def-${type}`} className="info-bulle">{DEFINITIONS[type]}</span>
+          </span>
+        )}
+      </div>
       <p className="value" style={!estFiable ? { opacity: 0.5 } : undefined}>
         {valeur ?? '—'} <span className="unit">{unite}</span>
       </p>

@@ -1,0 +1,738 @@
+{
+	"info": {
+		"name": "Surveillance Eau Potable — Backend",
+		"description": "Collection pour tester l'API seule, sans le frontend. Lance d'abord la requête 'Connexion (login)' dans le dossier Auth : le token JWT est automatiquement enregistré et réutilisé par toutes les requêtes suivantes.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000"
+		},
+		{
+			"key": "token",
+			"value": ""
+		},
+		{
+			"key": "siteId",
+			"value": ""
+		},
+		{
+			"key": "capteurId",
+			"value": ""
+		},
+		{
+			"key": "mesureId",
+			"value": ""
+		},
+		{
+			"key": "alerteId",
+			"value": ""
+		},
+		{
+			"key": "utilisateurId",
+			"value": ""
+		},
+		{
+			"key": "destinataireId",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Connexion (login)",
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@demo.local\",\n  \"motDePasse\": \"motdepasse123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Connexion réussie (200)', () => pm.response.to.have.status(200));",
+									"const data = pm.response.json();",
+									"if (data.jeton) { pm.collectionVariables.set('token', data.jeton); console.log('Token enregistré.'); }"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Mon profil",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"me"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Sites",
+			"item": [
+				{
+					"name": "Lister les sites",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/sites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"sites"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const data = pm.response.json();",
+									"if (Array.isArray(data) && data.length > 0) { pm.collectionVariables.set('siteId', data[0]._id); console.log('siteId =', data[0]._id); }"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Créer un site (admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nom\": \"Site de test Postman\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/sites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"sites"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Capteurs",
+			"item": [
+				{
+					"name": "Lister les capteurs d'un site",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/sensors?site={{siteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"sensors"
+							],
+							"query": [
+								{
+									"key": "site",
+									"value": "{{siteId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const data = pm.response.json();",
+									"if (Array.isArray(data) && data.length > 0) { pm.collectionVariables.set('capteurId', data[0]._id); console.log('capteurId =', data[0]._id); }"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Créer un capteur (admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"site_id\": \"{{siteId}}\",\n  \"type\": \"pH\",\n  \"modele\": \"Test Postman\",\n  \"unite\": \"pH\",\n  \"broche\": \"A5\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/sensors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"sensors"
+							]
+						}
+					}
+				},
+				{
+					"name": "Remplacer un capteur — modèle/broche (admin)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"modele\": \"Nouveau modèle\",\n  \"broche\": \"A6\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/sensors/{{capteurId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"sensors",
+								"{{capteurId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Activer / désactiver un capteur (admin)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"actif\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/sensors/{{capteurId}}/active",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"sensors",
+								"{{capteurId}}",
+								"active"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Mesures",
+			"item": [
+				{
+					"name": "Envoyer une mesure (simule le Raspberry Pi)",
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"capteur_id\": \"{{capteurId}}\",\n  \"valeur\": 7.2\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/measurements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"measurements"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Mesure créée (201)', () => pm.response.to.have.status(201));",
+									"const data = pm.response.json();",
+									"if (data._id) { pm.collectionVariables.set('mesureId', data._id); }"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Dernières mesures (tableau de bord)",
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "noauth"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/measurements/latest?site={{siteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"measurements",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "site",
+									"value": "{{siteId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Historique d'un capteur (7 jours)",
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "noauth"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/measurements/history?capteur={{capteurId}}&jours=7",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"measurements",
+								"history"
+							],
+							"query": [
+								{
+									"key": "capteur",
+									"value": "{{capteurId}}"
+								},
+								{
+									"key": "jours",
+									"value": "7"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Supprimer une mesure (admin)",
+					"request": {
+						"method": "DELETE",
+						"url": {
+							"raw": "{{baseUrl}}/api/measurements/{{mesureId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"measurements",
+								"{{mesureId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Supprimer plusieurs mesures (admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"ids\": [\"{{mesureId}}\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/measurements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"measurements"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Seuils",
+			"item": [
+				{
+					"name": "Lister les seuils d'un site",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/thresholds?site={{siteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"thresholds"
+							],
+							"query": [
+								{
+									"key": "site",
+									"value": "{{siteId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Modifier un seuil (admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"valeur_min\": 6.5,\n  \"valeur_max\": 8.5\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/thresholds/{{capteurId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"thresholds",
+								"{{capteurId}}"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Alertes",
+			"item": [
+				{
+					"name": "Lister les alertes actives",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/alerts?statut=active&site={{siteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"alerts"
+							],
+							"query": [
+								{
+									"key": "statut",
+									"value": "active"
+								},
+								{
+									"key": "site",
+									"value": "{{siteId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const data = pm.response.json();",
+									"if (data.resultats && data.resultats.length > 0) { pm.collectionVariables.set('alerteId', data.resultats[0]._id); }"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Supprimer une alerte (admin)",
+					"request": {
+						"method": "DELETE",
+						"url": {
+							"raw": "{{baseUrl}}/api/alerts/{{alerteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"alerts",
+								"{{alerteId}}"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Vanne",
+			"item": [
+				{
+					"name": "État de la vanne (lu par le Raspberry Pi)",
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "noauth"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/valve/state?site={{siteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"valve",
+								"state"
+							],
+							"query": [
+								{
+									"key": "site",
+									"value": "{{siteId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Utilisateurs (admin)",
+			"item": [
+				{
+					"name": "Lister les utilisateurs",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users"
+							]
+						}
+					}
+				},
+				{
+					"name": "Créer un utilisateur",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nom\": \"Testeur Postman\",\n  \"email\": \"testeur.postman@exemple.com\",\n  \"motDePasse\": \"motdepasse123\",\n  \"role\": \"communautaire\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users"
+							]
+						}
+					}
+				},
+				{
+					"name": "Modifier mon profil (nom/email)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nom\": \"Nouveau nom\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"me"
+							]
+						}
+					}
+				},
+				{
+					"name": "Changer mon mot de passe",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"motDePasseActuel\": \"motdepasse123\",\n  \"nouveauMotDePasse\": \"nouveauMotDePasse456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me/password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"me",
+								"password"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Destinataires d'alertes (admin)",
+			"item": [
+				{
+					"name": "Lister les destinataires d'un site",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/recipients?site={{siteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"recipients"
+							],
+							"query": [
+								{
+									"key": "site",
+									"value": "{{siteId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Ajouter un destinataire",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"site_id\": \"{{siteId}}\",\n  \"email\": \"alerte.postman@exemple.com\",\n  \"nom\": \"Testeur\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/recipients",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"recipients"
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}

@@ -55,6 +55,44 @@ export function exporterExcel(lignes, nomFichier = 'historique.xlsx', nomFeuille
   exporterExcelGenerique(ENTETES_HISTORIQUE, lignes.map(ligneHistoriqueVersTableau), nomFichier, nomFeuille, LARGEURS_HISTORIQUE);
 }
 
+/**
+ * Export Excel de l'historique AVEC les graphiques :
+ *   - feuille « Historique » : le tableau des mesures
+ *   - feuille « Graphiques » : une image par graphique, les unes sous les autres
+ * images : [{ titre, dataUrl, largeur, hauteur }] (voir utils/graphiqueImage.js)
+ *
+ * La bibliothèque xlsx ne sait pas insérer d'images : on utilise exceljs, chargé
+ * seulement au moment de l'export pour ne pas alourdir le chargement de la page.
+ */
+export async function exporterExcelAvecGraphiques(lignes, images, nomFichier = 'historique.xlsx') {
+  const { default: ExcelJS } = await import('exceljs');
+  const classeur = new ExcelJS.Workbook();
+
+  const feuille = classeur.addWorksheet('Historique', { views: [{ state: 'frozen', ySplit: 1 }] });
+  feuille.columns = ENTETES_HISTORIQUE.map((entete, i) => ({ header: entete, width: LARGEURS_HISTORIQUE[i] }));
+  feuille.getRow(1).font = { bold: true };
+  lignes.forEach((l) => feuille.addRow(ligneHistoriqueVersTableau(l)));
+
+  if (images.length > 0) {
+    const feuilleGraphiques = classeur.addWorksheet('Graphiques');
+    const LARGEUR_IMAGE = 760; // px dans Excel ; la hauteur garde les proportions
+    const HAUTEUR_LIGNE_EXCEL = 20; // px, hauteur par défaut d'une ligne Excel
+    let ligne = 0;
+    images.forEach(({ dataUrl, largeur, hauteur }) => {
+      const id = classeur.addImage({ base64: dataUrl, extension: 'png' });
+      const hauteurImage = Math.round((hauteur / largeur) * LARGEUR_IMAGE);
+      feuilleGraphiques.addImage(id, { tl: { col: 0, row: ligne }, ext: { width: LARGEUR_IMAGE, height: hauteurImage } });
+      ligne += Math.ceil(hauteurImage / HAUTEUR_LIGNE_EXCEL) + 2;
+    });
+  }
+
+  const tampon = await classeur.xlsx.writeBuffer();
+  telechargerBlob(
+    new Blob([tampon], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    nomFichier,
+  );
+}
+
 // ---------- Export de la liste des alertes ----------
 
 const ENTETES_ALERTES = ['Date / heure', 'Type', 'Capteur', 'Valeur mesurée', 'Statut', 'Date de résolution'];

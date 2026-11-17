@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useState } from 'react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, Brush,
 } from 'recharts';
 import client from '../api/client';
 
-const SERIES = {
+export const SERIES = {
   ph: { libelle: 'pH', unite: '', couleur: '#2563EB' },
   turbidite: { libelle: 'Turbidité', unite: 'NTU', couleur: '#B45309' },
   temperature: { libelle: 'Température', unite: '°C', couleur: '#DC2626' },
-  conductivite: { libelle: 'TDS', unite: 'ppm', couleur: '#7C3AED' },
+  tds: { libelle: 'TDS', unite: 'ppm', couleur: '#7C3AED' },
 };
 
-const DECIMALES = { ph: 2, turbidite: 0, temperature: 1, conductivite: 0 };
+const DECIMALES = { ph: 2, turbidite: 0, temperature: 1, tds: 0 };
+// Pour un graphique d'une seule mesure, l'échelle est plus resserrée : on affiche plus de décimales.
+const DECIMALES_SEUL = { ph: 2, turbidite: 2, temperature: 1, tds: 0 };
 
 const NB_BUCKETS = 150; // assez fin pour un zoom utile, assez grossier pour rester lisible
 
@@ -23,11 +25,11 @@ function formatDateCourte(t) {
   return new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
 }
 
-// Fusionne 3 séries indépendantes (avec des horodatages potentiellement différents)
+// Fusionne les séries indépendantes (avec des horodatages potentiellement différents)
 // en une seule liste de points alignés sur des intervalles de temps communs, en
 // moyennant les valeurs par intervalle — nécessaire pour un graphique multi-courbes
 // avec un seul axe X partagé, et pour éviter des milliers de points bruts illisibles.
-function fusionnerEtAgreger(donneesParCle) {
+export function fusionnerEtAgreger(donneesParCle) {
   const tousPoints = Object.values(donneesParCle).flat();
   if (tousPoints.length === 0) return [];
 
@@ -64,7 +66,12 @@ function fusionnerEtAgreger(donneesParCle) {
     .filter((ligne) => Object.keys(SERIES).some((cle) => ligne[cle] !== null));
 }
 
-function InfoBulle({ active, payload, label }) {
+// Clés ayant assez de points pour tracer une courbe
+export function clesTracables(donnees, cles) {
+  return cles.filter((cle) => donnees.filter((l) => l[cle] !== null).length > 1);
+}
+
+function InfoBulle({ active, payload, label, decimales = DECIMALES }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
     <div style={styles.infoBulle}>
@@ -76,7 +83,7 @@ function InfoBulle({ active, payload, label }) {
         return (
           <p key={cle} style={{ ...styles.infoBulleLigne, color: s.couleur }}>
             <span style={{ ...styles.pointCouleur, background: s.couleur }} />
-            {s.libelle} : <strong>{entree.value.toFixed(DECIMALES[cle] ?? 1)}</strong> {s.unite}
+            {s.libelle} : <strong>{entree.value.toFixed(decimales[cle] ?? 1)}</strong> {s.unite}
           </p>
         );
       })}
@@ -84,11 +91,77 @@ function InfoBulle({ active, payload, label }) {
   );
 }
 
+/**
+ * Graphique de courbes à partir de données déjà agrégées (voir fusionnerEtAgreger).
+ * - cles : séries à tracer (une seule → graphique individuel, sans légende)
+ * - le ref pointe sur le conteneur, pour l'export en image (utils/graphiqueImage.js)
+ */
+export const Courbes = forwardRef(function Courbes({ donnees, cles, className = 'graphique-hauteur', avecZoom = true }, ref) {
+  const seul = cles.length === 1;
+  const decimales = seul ? DECIMALES_SEUL : DECIMALES;
+  const axesGauche = cles.filter((c) => c !== 'tds');
+  const axesDroite = cles.filter((c) => c === 'tds');
+
+  return (
+    <div className={className} ref={ref}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={donnees} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+
+          <XAxis
+            dataKey="t" type="number" domain={['dataMin', 'dataMax']}
+            tickFormatter={formatDateCourte} stroke="#94A3B8" fontSize={11}
+          />
+
+          {(seul ? cles : axesGauche).map((cle) => (
+            <YAxis
+              key={cle} yAxisId={cle} orientation="left" domain={['auto', 'auto']}
+              stroke={SERIES[cle].couleur} fontSize={10.5} width={seul ? 50 : 44}
+              tickFormatter={(v) => v.toFixed(decimales[cle] ?? 0)}
+            />
+          ))}
+          {!seul && axesDroite.map((cle) => (
+            <YAxis
+              key={cle} yAxisId={cle} orientation="right" domain={['auto', 'auto']}
+              stroke={SERIES[cle].couleur} fontSize={10.5} width={48}
+              tickFormatter={(v) => v.toFixed(0)}
+            />
+          ))}
+
+          <Tooltip content={<InfoBulle decimales={decimales} />} />
+          {!seul && (
+            <Legend
+              formatter={(value) => <span style={{ color: '#334155', fontSize: 12.5 }}>{SERIES[value].libelle}{SERIES[value].unite ? ` (${SERIES[value].unite})` : ''}</span>}
+            />
+          )}
+
+          {cles.map((cle) => (
+            <Line
+              key={cle} yAxisId={cle} dataKey={cle} name={cle}
+              stroke={SERIES[cle].couleur} strokeWidth={seul ? 2 : 2.4} dot={false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: 'white' }}
+              connectNulls type="monotone" isAnimationActive={false}
+            />
+          ))}
+
+          {avecZoom && (
+            <Brush
+              dataKey="t" height={26} stroke="#0F766E" fill="#F1F5F9"
+              tickFormatter={formatDateCourte} travellerWidth={9}
+            />
+          )}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+});
+
+// Graphique combiné des 7 derniers jours (tableau de bord) : charge lui-même ses données.
 export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capteurTemperature, capteurConductivite }) {
-  const [donneesBrutes, setDonneesBrutes] = useState({ ph: [], turbidite: [], temperature: [], conductivite: [] });
+  const [donneesBrutes, setDonneesBrutes] = useState({ ph: [], turbidite: [], temperature: [], tds: [] });
   const [chargement, setChargement] = useState(true);
 
-  const idsParCle = { ph: capteurPH, turbidite: capteurTurbidite, temperature: capteurTemperature, conductivite: capteurConductivite };
+  const idsParCle = { ph: capteurPH, turbidite: capteurTurbidite, temperature: capteurTemperature, tds: capteurConductivite };
 
   useEffect(() => {
     const cles = Object.entries(idsParCle).filter(([, id]) => id);
@@ -99,7 +172,7 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
         const reponses = await Promise.all(
           cles.map(([, id]) => client.get(`/api/measurements/history?capteur=${id}&jours=7`))
         );
-        const nouvelles = { ph: [], turbidite: [], temperature: [], conductivite: [] };
+        const nouvelles = { ph: [], turbidite: [], temperature: [], tds: [] };
         cles.forEach(([cle], i) => { nouvelles[cle] = reponses[i].data; });
         setDonneesBrutes(nouvelles);
       } catch (err) {
@@ -114,8 +187,8 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
     return () => clearInterval(intervalle);
   }, [capteurPH, capteurTurbidite, capteurTemperature, capteurConductivite]);
 
-  const clesActives = Object.keys(SERIES).filter((cle) => idsParCle[cle] && donneesBrutes[cle].length > 1);
   const donnees = useMemo(() => fusionnerEtAgreger(donneesBrutes), [donneesBrutes]);
+  const clesActives = clesTracables(donnees, Object.keys(SERIES).filter((cle) => idsParCle[cle]));
 
   if (chargement) return <p className="chargement">Chargement du graphique…</p>;
   if (clesActives.length === 0 || donnees.length < 2) {
@@ -127,59 +200,10 @@ export default function GraphiqueHistorique({ capteurPH, capteurTurbidite, capte
     );
   }
 
-  const axesGauche = clesActives.filter((c) => c !== 'conductivite');
-  const axesDroite = clesActives.filter((c) => c === 'conductivite');
-
   return (
     <div>
       <p style={styles.astuce}> Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer sur une période</p>
-      <div className="graphique-hauteur">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={donnees} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-
-          <XAxis
-            dataKey="t" type="number" domain={['dataMin', 'dataMax']}
-            tickFormatter={formatDateCourte} stroke="#94A3B8" fontSize={11}
-          />
-
-          {axesGauche.map((cle, i) => (
-            <YAxis
-              key={cle} yAxisId={cle} orientation="left" domain={['auto', 'auto']}
-              stroke={SERIES[cle].couleur} fontSize={10.5} width={44}
-              tickFormatter={(v) => v.toFixed(DECIMALES[cle] ?? 0)}
-              {...(i > 0 ? { hide: false } : {})}
-            />
-          ))}
-          {axesDroite.map((cle) => (
-            <YAxis
-              key={cle} yAxisId={cle} orientation="right" domain={['auto', 'auto']}
-              stroke={SERIES[cle].couleur} fontSize={10.5} width={48}
-              tickFormatter={(v) => v.toFixed(0)}
-            />
-          ))}
-
-          <Tooltip content={<InfoBulle />} />
-          <Legend
-            formatter={(value) => <span style={{ color: '#334155', fontSize: 12.5 }}>{SERIES[value].libelle}{SERIES[value].unite ? ` (${SERIES[value].unite})` : ''}</span>}
-          />
-
-          {clesActives.map((cle) => (
-            <Line
-              key={cle} yAxisId={cle} dataKey={cle} name={cle}
-              stroke={SERIES[cle].couleur} strokeWidth={2.4} dot={false}
-              activeDot={{ r: 5, strokeWidth: 2, stroke: 'white' }}
-              connectNulls type="monotone" isAnimationActive={false}
-            />
-          ))}
-
-          <Brush
-            dataKey="t" height={26} stroke="#0F766E" fill="#F1F5F9"
-            tickFormatter={formatDateCourte} travellerWidth={9}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-      </div>
+      <Courbes donnees={donnees} cles={clesActives} />
     </div>
   );
 }

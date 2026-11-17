@@ -27,6 +27,10 @@ body {
 /* ---------- Main ---------- */
 .main { flex: 1; min-width: 0; padding: 28px 34px; max-width: 1280px; margin: 0 auto; }
 .graphique-hauteur { height: 340px; }
+/* Page Historique : un graphique par paramètre, 2 par ligne (1 sur petit écran) */
+.grille-graphiques { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
+.graphique-hauteur-petit { height: 240px; }
+@media (max-width: 1100px) { .grille-graphiques { grid-template-columns: 1fr; } }
 .topbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 26px; }
 .topbar h1 { font-size: 21px; color: #0F172A; font-weight: 700; }
 .topbar .subtitle { font-size: 13px; color: #64748B; margin-top: 4px; }

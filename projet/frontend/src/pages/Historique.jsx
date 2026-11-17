@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import client from '../api/client';
 import Layout from '../components/Layout';
-import GraphiqueHistorique from '../components/GraphiqueHistorique';
+import { Courbes, SERIES, fusionnerEtAgreger, clesTracables } from '../components/GraphiqueHistorique';
 import { grouperParCycle } from '../utils/mesures';
-import { exporterCSV, exporterExcel } from '../utils/export';
+import { exporterCSV, exporterExcelAvecGraphiques } from '../utils/export';
+import { graphiqueVersPng, telechargerDataUrl } from '../utils/graphiqueImage';
 import { useSite } from '../sites/SiteContext';
 import { useAuth } from '../auth/AuthContext';
 import { estAdmin } from '../utils/roles';
@@ -22,6 +23,14 @@ function dateLocale(decalageJours = 0) {
   return `${d.getFullYear()}-${mm}-${jj}`;
 }
 
+// « 2026-11-10 » → « 10/11/2026 »
+function dateFr(iso) {
+  const [a, m, j] = iso.split('-');
+  return `${j}/${m}/${a}`;
+}
+
+const titreSerie = (cle) => `${SERIES[cle].libelle}${SERIES[cle].unite ? ` (${SERIES[cle].unite})` : ''}`;
+
 export default function Historique() {
   const confirmer = useConfirmer();
   const { siteActifId } = useSite();
@@ -32,7 +41,11 @@ export default function Historique() {
   const [dateDebut, setDateDebut] = useState(() => dateLocale(-6));
   const [dateFin, setDateFin] = useState(() => dateLocale(0));
   const [lignes, setLignes] = useState([]);
+  // Mesures brutes par paramètre, sur la période choisie — alimentent les graphiques
+  const [donneesBrutes, setDonneesBrutes] = useState({});
   const [chargementTableau, setChargementTableau] = useState(true);
+  const [exportEnCours, setExportEnCours] = useState(false);
+  const refsGraphiques = useRef({});
 
   const plageInvalide = !dateDebut || !dateFin || dateDebut > dateFin;
   const [erreur, setErreur] = useState(null);
@@ -66,18 +79,54 @@ export default function Historique() {
       .then((reponses) => {
         const donneesParCle = {};
         cles.forEach(([cle], i) => { donneesParCle[cle] = reponses[i].data; });
+        setDonneesBrutes(donneesParCle);
         setLignes(grouperParCycle(donneesParCle));
       })
       .catch(() => setErreur("Impossible de charger l'historique."))
       .finally(() => setChargementTableau(false));
   }, [mesures, dateDebut, dateFin, versionRafraichissement]);
 
-  const capteurPH = idParType('pH');
-  const capteurTurbidite = idParType('turbidite');
-  const capteurTemperature = idParType('temperature');
-  const capteurConductivite = idParType('tds');
-
   const nomFichier = `historique_${dateDebut}_au_${dateFin}`;
+  const libellePeriode = `du ${dateFr(dateDebut)} au ${dateFr(dateFin)}`;
+
+  // 5 graphiques : la vue d'ensemble (toutes les mesures) + un par paramètre
+  const donneesGraphiques = useMemo(() => fusionnerEtAgreger(donneesBrutes), [donneesBrutes]);
+  const clesAvecDonnees = clesTracables(donneesGraphiques, CLES_CAPTEURS);
+  const graphiques = [
+    { id: 'ensemble', titre: "Vue d'ensemble", cles: clesAvecDonnees, fichier: 'ensemble' },
+    ...CLES_CAPTEURS.map((cle) => ({ id: cle, titre: titreSerie(cle), cles: [cle], fichier: cle })),
+  ];
+
+  // Image PNG d'un graphique (null s'il n'est pas affiché faute de données)
+  const imageDuGraphique = (g) => graphiqueVersPng(refsGraphiques.current[g.id], {
+    titre: `${g.titre} — ${libellePeriode}`,
+    legende: g.cles.length > 1 ? g.cles.map((c) => ({ libelle: titreSerie(c), couleur: SERIES[c].couleur })) : [],
+  });
+
+  const telechargerGraphique = async (g) => {
+    try {
+      const image = await imageDuGraphique(g);
+      if (image) telechargerDataUrl(image.dataUrl, `${nomFichier}_${g.fichier}.png`);
+    } catch (err) {
+      setErreur(err.message);
+    }
+  };
+
+  const exporterExcel = async () => {
+    setExportEnCours(true);
+    try {
+      const images = [];
+      for (const g of graphiques) {
+        const image = await imageDuGraphique(g);
+        if (image) images.push({ titre: g.titre, ...image });
+      }
+      await exporterExcelAvecGraphiques(lignes, images, `${nomFichier}.xlsx`);
+    } catch (err) {
+      setErreur("Impossible de générer le fichier Excel.");
+    } finally {
+      setExportEnCours(false);
+    }
+  };
 
   const idsDeLaLigne = (l) => CLES_CAPTEURS.map((c) => l[`${c}_id`]).filter(Boolean);
 
@@ -126,20 +175,54 @@ export default function Historique() {
     }
   };
 
+  // Un panneau de graphique avec son bouton de téléchargement
+  const panneauGraphique = (g, style) => {
+    const disponible = g.cles.length > 0 && g.cles.every((c) => clesAvecDonnees.includes(c));
+    const estEnsemble = g.id === 'ensemble';
+    let contenu;
+    if (plageInvalide) contenu = <p className="chargement">Choisis une période valide.</p>;
+    else if (chargementTableau) contenu = <p className="chargement">Chargement du graphique…</p>;
+    else if (!disponible) contenu = <p className="chargement">Pas assez de mesures sur cette période.</p>;
+    else {
+      contenu = (
+        <>
+          {estEnsemble && <p style={styles.astuce}>Survole le graphique pour voir les valeurs · fais glisser la barre grisée en bas pour zoomer</p>}
+          <Courbes
+            ref={(el) => { refsGraphiques.current[g.id] = el; }}
+            donnees={donneesGraphiques}
+            cles={g.cles}
+            className={estEnsemble ? 'graphique-hauteur' : 'graphique-hauteur-petit'}
+            avecZoom={estEnsemble}
+          />
+        </>
+      );
+    }
+
+    return (
+      <div className="panel" key={g.id} style={style}>
+        <div className="panel-header">
+          <h2 style={!estEnsemble ? { color: SERIES[g.id].couleur } : undefined}>{g.titre}</h2>
+          <button
+            style={styles.btnSecondaire}
+            onClick={() => telechargerGraphique(g)}
+            disabled={!disponible || plageInvalide || chargementTableau}
+            title="Télécharger ce graphique en image PNG"
+          >
+            ⬇ PNG
+          </button>
+        </div>
+        {contenu}
+      </div>
+    );
+  };
+
   return (
     <Layout titre="Historique" sousTitre="Évolution des mesures sur une période choisie">
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}
 
       <div className="panel" style={{ marginBottom: 18 }}>
-        <div className="panel-header">
-          <h2>Vue d'ensemble (7 jours)</h2>
-        </div>
-        <GraphiqueHistorique capteurPH={capteurPH} capteurTurbidite={capteurTurbidite} capteurTemperature={capteurTemperature} capteurConductivite={capteurConductivite} />
-      </div>
-
-      <div className="panel">
-        <div className="panel-header" style={{ flexWrap: 'wrap', gap: 10 }}>
-          <h2>Tableau des mesures</h2>
+        <div className="panel-header" style={{ marginBottom: 0 }}>
+          <h2>Période</h2>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <label style={styles.labelDate}>
               Du
@@ -165,9 +248,22 @@ export default function Historique() {
             <button style={styles.btnSecondaire} onClick={() => exporterCSV(lignes, `${nomFichier}.csv`)} disabled={plageInvalide || lignes.length === 0}>
               ⬇ Export CSV
             </button>
-            <button style={styles.btnPrincipal} onClick={() => exporterExcel(lignes, `${nomFichier}.xlsx`)} disabled={plageInvalide || lignes.length === 0}>
-              ⬇ Export Excel
+            <button style={styles.btnPrincipal} onClick={exporterExcel} disabled={plageInvalide || lignes.length === 0 || exportEnCours} title="Tableau des mesures + les 5 graphiques">
+              {exportEnCours ? 'Export…' : '⬇ Export Excel'}
             </button>
+          </div>
+        </div>
+      </div>
+
+      {panneauGraphique(graphiques[0], { marginBottom: 18 })}
+      <div className="grille-graphiques">
+        {graphiques.slice(1).map((g) => panneauGraphique(g))}
+      </div>
+
+      <div className="panel">
+        <div className="panel-header" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <h2>Tableau des mesures</h2>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {peutGerer && selectionnees.size > 0 && (
               <button
                 style={styles.btnDanger}
@@ -245,6 +341,7 @@ export default function Historique() {
 }
 
 const styles = {
+  astuce: { fontSize: 11.5, color: '#94A3B8', marginBottom: 8 },
   labelDate: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#64748B' },
   select: { fontSize: 12.5, padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155' },
   btnSecondaire: { fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#334155', cursor: 'pointer' },

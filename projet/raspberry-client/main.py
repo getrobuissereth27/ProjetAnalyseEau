@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from capteurs import lire_toutes_les_mesures
 from client_api import envoyer_mesure, recuperer_capteurs, recuperer_etat_vanne
-from tampon import mettre_en_attente, rejouer_mesures_en_attente
+from tampon import mettre_en_attente, rejouer_mesures_en_attente, nouvel_identifiant
 from vanne import appliquer_etat_vanne, nettoyer
 from config import INTERVALLE_SECONDES, CAPTEURS_ID, API_URL
 
@@ -52,13 +52,17 @@ def cycle_de_mesure(capteurs_id):
         capteurs_id.get('tds'): mesures['tds'],
     }
 
+    # Heure d'origine de la lecture + identifiant unique par mesure : envoyés au serveur
+    # et conservés dans le tampon, donc identiques à chaque rejeu (pas de doublon, pas
+    # de décalage d'heure).
     horodatage = datetime.now(timezone.utc).isoformat()
     for capteur_id, valeur in lectures.items():
         if valeur is None or not capteur_id:
             continue
         print(f"  {capteur_id} = {valeur}")
-        if not envoyer_mesure(capteur_id, valeur):
-            mettre_en_attente(capteur_id, valeur, horodatage)
+        mesure_uid = nouvel_identifiant()
+        if not envoyer_mesure(capteur_id, valeur, horodatage, mesure_uid):
+            mettre_en_attente(capteur_id, valeur, horodatage, mesure_uid)
 
 
 def mettre_a_jour_la_vanne():

@@ -3,6 +3,7 @@ import client from '../api/client';
 import Layout from '../components/Layout';
 import GestionDestinataires from '../components/GestionDestinataires';
 import PortsArduino from '../components/PortsArduino';
+import RaspberrySite from '../components/RaspberrySite';
 import { useSite } from '../sites/SiteContext';
 import { useConfirmer } from '../confirm/ConfirmContext';
 
@@ -217,6 +218,8 @@ export default function ParametresSeuils() {
       {erreur && <div className="erreur-connexion">⚠ {erreur}</div>}
 
       <GestionDestinataires />
+
+      <RaspberrySite />
 
       <PortsArduino seuils={seuils} />
 

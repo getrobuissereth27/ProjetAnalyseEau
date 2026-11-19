@@ -8,6 +8,11 @@ import os
 API_URL = os.environ.get("API_URL", "http://localhost:3002")
 
 TIMEOUT_SECONDES = 5
+
+# Clé d'API du site, envoyée dans l'en-tête X-API-Key pour authentifier ce Raspberry Pi
+# sur POST /api/measurements. À générer côté backend : npm run cle:site -- <id_du_site>
+# Ne jamais l'écrire dans le code ni la commiter : la passer par la variable d'environnement.
+CLE_API = os.environ.get("CLE_API", "")
 INTERVALLE_SECONDES = int(os.environ.get("INTERVALLE_SECONDES", "10"))
 
 # Mode simulation : True = génère des valeurs aléatoires réalistes (pour tester
@@ -33,7 +38,7 @@ CAPTEURS_ID = {
     "tds": os.environ.get("ID_CAPTEUR_TDS", ""),
 }
 
-# Port série de l'Arduino Mega. '*' = motif auto-détecté (utile car le port
+# Port série de l'Arduino Uno. '*' = motif auto-détecté (utile car le port
 # peut être /dev/ttyACM0 ou /dev/ttyACM1 selon l'ordre de branchement USB).
 PORT_SERIE = os.environ.get("PORT_SERIE", "/dev/ttyACM*")
 BAUDRATE = int(os.environ.get("BAUDRATE", "9600"))

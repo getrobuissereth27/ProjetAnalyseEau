@@ -1,5 +1,9 @@
 const { body, param, query, validationResult } = require('express-validator');
 const { ROLES } = require('../models/utilisateur.model');
+const { isIP } = require('net');
+
+// Nom d'hôte : lettres, chiffres et tirets, séparés par des points (ex. raspberrypi.local)
+const NOM_HOTE = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
 
 /*
  * Validation des entrées avec express-validator.
@@ -39,6 +43,17 @@ const siteQueryOptionnel = query('site').optional({ values: 'falsy' }).isMongoId
 const texteRequis = (champ, message) => body(champ).isString().withMessage(message).bail().trim().notEmpty().withMessage(message);
 const texteOptionnel = (champ, message) => body(champ).optional({ values: 'null' }).isString().withMessage(message);
 const emailOptionnel = body('email').optional({ values: 'null' }).isEmail().withMessage('Adresse email invalide');
+// Adresse du Raspberry Pi d'un site : IPv4 / IPv6, ou nom d'hôte (ex. raspberrypi.local).
+// Une chaîne vide efface l'adresse.
+const reglesRaspberry = [
+  body('ipRaspberry').optional({ values: 'null' })
+    .isString().withMessage('Adresse IP du Raspberry invalide').bail()
+    .trim()
+    .custom((v) => v === '' || isIP(v) !== 0 || (NOM_HOTE.test(v) && !/^[\d.]+$/.test(v)))
+    .withMessage('Adresse IP du Raspberry invalide'),
+  body('portRaspberry').optional({ values: 'null' })
+    .isInt({ min: 1, max: 65535 }).withMessage('Le port doit être un entier entre 1 et 65535').toInt(),
+];
 const STATUTS_ALERTE = ['active', 'resolue'];
 const CATEGORIES_ALERTE = ['seuil', 'capteur_defaillant'];
 
@@ -57,6 +72,12 @@ const regles = {
       .isMongoId().withMessage('capteur_id invalide'),
     body('valeur').exists({ values: 'null' }).withMessage('capteur_id et valeur sont requis').bail()
       .isFloat().withMessage('La valeur doit être un nombre'),
+    // Facultatifs : envoyés par le client Raspberry Pi (idempotence, heure d'origine)
+    body('mesure_uid').optional({ values: 'null' })
+      .isString().withMessage('mesure_uid invalide').bail()
+      .matches(/^[A-Za-z0-9-]{8,64}$/).withMessage('mesure_uid invalide (8 à 64 caractères : lettres, chiffres, tirets)'),
+    body('horodatage').optional({ values: 'null' })
+      .isISO8601().withMessage('horodatage invalide (format ISO 8601 attendu)'),
   ]),
   dernieresMesures: valider([siteQueryOptionnel]),
   historique: valider([
@@ -120,12 +141,15 @@ const regles = {
   creerSite: valider([
     texteRequis('nom', 'Le nom du site est requis'),
     texteOptionnel('localisation', 'La localisation doit être un texte'),
+    ...reglesRaspberry,
   ]),
   modifierSite: valider([
     idParam(),
     texteOptionnel('nom', 'Le nom du site doit être un texte'),
     texteOptionnel('localisation', 'La localisation doit être un texte'),
+    ...reglesRaspberry,
   ]),
+  statutRaspberry: valider([idParam()]),
 
   // Destinataires des emails
   listerDestinataires: valider([siteQueryOptionnel]),

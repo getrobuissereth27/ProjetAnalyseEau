@@ -244,7 +244,7 @@ Câblage : LED + résistance ~330 Ω entre le **GPIO 17** (broche 11) et **GND**
 GPIO 17 ──[330Ω]──▶│LED│── GND
 ```
 
-Sans matériel, l'état s'affiche dans le terminal (`🟢 OUVERTE` / `🔴 FERMÉE`).
+Sans matériel, l'état s'affiche dans le terminal (` OUVERTE` / ` FERMÉE`).
 
 ---
 
@@ -275,19 +275,35 @@ utilisateur peut appartenir à plusieurs sites et ne voit que ceux-là.
 
 | Action | Super administrateur | Administrateur | Responsable CAEPA |
 |---|:---:|:---:|:---:|
-| Consulter les données de ses sites | ✅ (tous) | ✅ | ✅ |
-| Créer un site | ✅ | ❌ | ❌ |
-| Attribuer / retirer des sites à un compte | ✅ | ❌ | ❌ |
-| Ajouter un administrateur ou un responsable CAEPA | ✅ | ✅ (sur son site) | ❌ |
-| Nommer un super administrateur | ✅ | ❌ | ❌ |
-| Capteurs, seuils, destinataires email | ✅ | ✅ (ses sites) | ❌ |
+| Consulter les données de ses sites | v (tous) | v | v |
+| Créer un site | v | * | * |
+| Configurer l'adresse IP du Raspberry Pi d'un site | v | * (lecture seule) | * |
+| Attribuer / retirer des sites à un compte | v | * | * |
+| Ajouter un administrateur ou un responsable CAEPA | * | * (sur son site) | * |
+| Nommer un super administrateur | v | * | * |
+| Capteurs, seuils, destinataires email | v | v (ses sites) | * |
 
 - **Changer de site** : sélecteur en bas de la barre latérale.
 - **Ajouter un site** (super administrateur) : bouton « + Ajouter un site » sous le sélecteur.
 - **Ajouter les capteurs d'un nouveau site** : sélectionne le site, puis « Paramètres » →
   « + Ajouter un capteur ».
+- **Adresse IP du Raspberry Pi** (super administrateur) : sélectionne le site, puis
+  « Paramètres » → panneau « Raspberry Pi du site ». Saisis l'IP (ou le nom d'hôte, ex.
+  `raspberrypi.local`) et le port, puis « Enregistrer ». « Tester la connexion » vérifie
+  que le Raspberry répond sur ce port (22 = SSH par défaut) et affiche la dernière mesure
+  reçue. Deux sites ne peuvent pas avoir la même adresse. Réserve l'IP du Raspberry dans
+  la box (bail DHCP fixe) pour qu'elle ne change pas.
 - Un compte créé par un administrateur est rattaché automatiquement à son site. Un
   administrateur ne peut modifier ou supprimer un compte que si tous les sites de ce compte
   sont les siens, et jamais un super administrateur.
 - Si aucun super administrateur n'existe au démarrage, le plus ancien administrateur est
   promu automatiquement (`backend/services/migration.service.js`).
+
+
+## Fiabilité et sécurité des mesures (POST /api/measurements)
+
+- **Idempotence** : le client Raspberry Pi attribue un `mesure_uid` unique à chaque mesure, avant le premier envoi, et le garde dans le tampon. Si l'accusé de réception se perd et que la mesure est renvoyée, le serveur répond `200` avec la mesure déjà enregistrée au lieu d'en créer une seconde (`201` = créée). Un index unique sur `mesure_uid` protège aussi contre deux envois simultanés.
+- **Horodatage d'origine** : le client envoie l'heure de la lecture (`horodatage`, ISO 8601), conservée telle quelle lors du rejeu du tampon. Une date dans le futur (plus de 5 minutes) est refusée (400).
+- **Clé d'API par site** : `POST /api/measurements` n'a pas de JWT ; le Raspberry Pi s'authentifie avec l'en-tête `X-API-Key`. La clé est générée par `npm run cle:site -- <id_du_site>` (affichée une seule fois, seule son empreinte SHA-256 est stockée), puis donnée au client : `CLE_API=<clé> python3 main.py`. Un site sans clé reste accepté tant que `CLE_API_OBLIGATOIRE` n'est pas `true` (mode de transition) ; en production, mettre `CLE_API_OBLIGATOIRE=true`.
+- Tests : `npm test` (backend, dont `tests/mesures.fiabilite.test.js`) et `python3 -m unittest test_tampon` dans `raspberry-client/`.
+- Limite connue : `GET /api/sensors` et `GET /api/valve/state`, appelés par le Raspberry Pi, restent publics (lecture seule).

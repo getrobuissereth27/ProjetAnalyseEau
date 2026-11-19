@@ -7,6 +7,7 @@ const { proteger, exigerRole } = require('../middleware/auth.middleware');
 router.get('/', proteger, ctrl.listerSites);
 router.post('/', proteger, exigerRole('superadmin'), regles.creerSite, ctrl.creerSite);
 router.patch('/:id', proteger, exigerRole('superadmin'), regles.modifierSite, ctrl.modifierSite);
+router.get('/:id/raspberry/statut', proteger, exigerRole('superadmin'), regles.statutRaspberry, ctrl.statutRaspberry);
 router.delete('/:id', proteger, exigerRole('superadmin'), regles.parId, ctrl.supprimerSite);
 
 module.exports = router;

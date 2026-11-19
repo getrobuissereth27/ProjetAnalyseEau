@@ -12,16 +12,50 @@ async function idsCapteursAccessibles(utilisateur) {
   return capteurs.map((c) => c._id);
 }
 
+// Tolérance sur l'horloge du client pour l'horodatage envoyé (5 minutes d'avance).
+const TOLERANCE_FUTUR_MS = 5 * 60 * 1000;
+
 // POST /api/measurements
-// Reste public : c'est le Raspberry Pi qui envoie les mesures.
+// Pas de JWT (le Raspberry Pi n'a pas de compte utilisateur) : l'accès est contrôlé
+// par la clé d'API du site, voir middleware/cleapi.middleware.js.
+// Corps : { capteur_id, valeur, mesure_uid?, horodatage? }.
+// Réponses : 201 mesure créée ; 200 mesure déjà enregistrée (doublon ignoré).
 exports.creerMesure = async (req, res) => {
   try {
-    const { capteur_id, valeur } = req.body;
+    const { capteur_id, valeur, mesure_uid } = req.body;
     if (!capteur_id || valeur === undefined) {
       return res.status(400).json({ erreur: 'capteur_id et valeur sont requis' });
     }
 
-    const mesure = await Mesure.create({ capteur_id, valeur });
+    // Idempotence : si cette mesure a déjà été enregistrée (renvoi après un accusé
+    // de réception perdu), on répond comme pour un succès sans la réenregistrer
+    // ni relancer l'analyse des seuils.
+    if (mesure_uid) {
+      const existante = await Mesure.findOne({ mesure_uid });
+      if (existante) return res.status(200).json(existante);
+    }
+
+    // Horodatage d'origine : celui de la prise de mesure, sinon l'heure de réception.
+    // Une date dans le futur (horloge du Raspberry Pi déréglée) est refusée.
+    let horodatage = new Date();
+    if (req.body.horodatage) {
+      horodatage = new Date(req.body.horodatage);
+      if (Number.isNaN(horodatage.getTime()) || horodatage.getTime() > Date.now() + TOLERANCE_FUTUR_MS) {
+        return res.status(400).json({ erreur: 'horodatage invalide ou dans le futur' });
+      }
+    }
+
+    let mesure;
+    try {
+      mesure = await Mesure.create({ capteur_id, valeur, horodatage, mesure_uid });
+    } catch (err) {
+      // Deux envois simultanés du même mesure_uid : le second échoue sur l'index unique.
+      if (err.code === 11000 && mesure_uid) {
+        const existante = await Mesure.findOne({ mesure_uid });
+        if (existante) return res.status(200).json(existante);
+      }
+      throw err;
+    }
 
     // Heartbeat : toute mesure reçue, quelle que soit sa valeur, prouve que le
     // capteur est physiquement vivant — voir le virtual "statut" sur le modèle.

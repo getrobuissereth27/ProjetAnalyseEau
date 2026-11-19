@@ -66,7 +66,8 @@ function prochaineValeur(etat, plage, seuil, ampleur) {
 async function envoyer(capteurId, valeur) {
   const res = await fetch(`${API_URL}/api/measurements`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // CLE_API : clé d'API du site (npm run cle:site), obligatoire si le site en a une
+    headers: { 'Content-Type': 'application/json', ...(process.env.CLE_API ? { 'X-API-Key': process.env.CLE_API } : {}) },
     body: JSON.stringify({ capteur_id: capteurId, valeur }),
   });
   if (!res.ok) throw new Error(`API ${res.status}`);

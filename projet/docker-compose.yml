@@ -24,6 +24,9 @@ services:
       # réellement envoyé, tout est consultable sur http://localhost:8025
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
+      # Clé d'API du Raspberry Pi : mettre true une fois une clé générée pour chaque site
+      # (docker compose exec backend npm run cle:site -- <id_du_site>)
+      CLE_API_OBLIGATOIRE: ${CLE_API_OBLIGATOIRE:-false}
     ports:
       - "3002:3000"
 
@@ -63,6 +66,8 @@ services:
       # Réseau interne Docker : nom du service + port interne (pas 3002)
       API_URL: http://backend:3000
       INTERVALLE_SECONDES: 10
+      # Clé d'API du site (vide tant qu'aucune n'est configurée) : CLE_API=... docker compose up -d
+      CLE_API: ${CLE_API:-}
       # Chance par cycle de simuler un pic critique (alerte + email Mailpit),
       # qui dure DUREE_PIC_CYCLES cycles. 0 pour désactiver.
       PROBA_PIC_CRITIQUE: "0.05"
